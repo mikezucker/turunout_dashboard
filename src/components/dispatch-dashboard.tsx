@@ -348,12 +348,12 @@ function UnitBrandBlock({ unit }: { unit: SerializedUnitProfile }) {
   return (
     <div className="flex items-center justify-center">
       {company.imageSrc ? (
-        <div className="flex h-40 w-40 items-center justify-center overflow-hidden">
+        <div className="flex h-48 w-48 items-center justify-center overflow-hidden">
           <Image
             src={company.imageSrc}
             alt={`${company.name} logo`}
-            width={160}
-            height={160}
+            width={192}
+            height={192}
             unoptimized
             className="h-full w-full object-contain drop-shadow-[0_10px_24px_rgba(0,0,0,0.24)]"
           />
@@ -726,8 +726,9 @@ export function DispatchDashboard() {
     () => (unit ? activeWeatherAlert(unit.weatherDetails) : null),
     [unit],
   );
-  const isRainViewerRadarEmbed = Boolean(
-    unit?.weatherRadarPageUrl?.includes("rainviewer.com/map.html"),
+  const isEmbeddedRadar = Boolean(
+    unit?.weatherRadarPageUrl?.includes("embed.windy.com") ||
+      unit?.weatherRadarPageUrl?.includes("rainviewer.com/map.html"),
   );
   const activeWeatherRadarImageUrl = useMemo(() => {
     if (!unit) {
@@ -907,7 +908,7 @@ export function DispatchDashboard() {
                     </p>
                   </div>
                 </div>
-                {!unit.weatherRadarImageUrl ? (
+                {!unit.weatherRadarImageUrl && !unit.weatherRadarPageUrl ? (
                   <div className="flex justify-center xl:justify-start">
                     {weatherArtwork(unit.weatherSummary)}
                   </div>
@@ -948,7 +949,7 @@ export function DispatchDashboard() {
                 <p className="text-sm text-white/60">Centered on Morris Township</p>
               </div>
               <div className="mt-5 overflow-hidden rounded-[1.7rem] border border-white/12 bg-black/24">
-                {isRainViewerRadarEmbed && unit.weatherRadarPageUrl ? (
+                {isEmbeddedRadar && unit.weatherRadarPageUrl ? (
                   <iframe
                     src={unit.weatherRadarPageUrl}
                     title={`${unit.weatherLocation} radar map`}
@@ -978,10 +979,10 @@ export function DispatchDashboard() {
                 )}
               </div>
               <p className="mt-4 text-base leading-7 text-white/64">
-                RainViewer radar map is centered on Morristown, NJ.
+                Windy radar map is centered on Morristown, NJ.
               </p>
               <p className="mt-2 text-sm text-white/48">
-                Radar imagery by RainViewer.
+                Radar imagery by Windy.
               </p>
             </div>
           </div>
@@ -1045,7 +1046,7 @@ export function DispatchDashboard() {
     unit,
     flashingWeatherAlert,
     weatherFactors,
-    isRainViewerRadarEmbed,
+    isEmbeddedRadar,
     activeWeatherRadarImageUrl,
     workOrders,
     workOrdersMessage,
@@ -1270,29 +1271,40 @@ export function DispatchDashboard() {
       <main className="mx-auto flex h-screen max-h-screen w-full max-w-[1800px] overflow-hidden px-4 py-4 sm:px-5 sm:py-5 lg:px-6 lg:py-6">
         <section className="grid h-full w-full gap-5 rounded-[2.2rem] border border-white/14 bg-[linear-gradient(135deg,rgba(220,93,52,0.98),rgba(120,23,23,1))] p-7 text-white shadow-[0_40px_120px_rgba(0,0,0,0.35)] xl:grid-cols-[minmax(0,1.7fr)_380px]">
           <div className="min-w-0">
-            <div className="flex items-start justify-between gap-4">
+            <div className="grid gap-6 xl:grid-cols-[auto_minmax(0,1fr)_auto] xl:items-start">
               <DepartmentLogo subtitle="Turnout Board" dark />
-              <button
-                type="button"
-                onClick={handleLogout}
-                disabled={loggingOut}
-                className="rounded-full border border-white/20 bg-black/12 px-5 py-3 font-mono text-xs uppercase tracking-[0.22em] text-white/80 transition hover:bg-black/20 disabled:cursor-not-allowed disabled:opacity-60"
-              >
-                {loggingOut ? "Logging Out" : "Log Out"}
-              </button>
+              <div className="min-w-0 xl:px-2">
+                <p className="font-mono text-sm uppercase tracking-[0.38em] text-white/70">
+                  Active Dispatch / {unit.displayName}
+                </p>
+                <h1 className="mt-4 max-w-5xl text-5xl font-semibold leading-[0.92] tracking-[-0.06em] text-white sm:text-6xl 2xl:text-7xl">
+                  {primaryDispatch.nature ?? "Dispatch Alert"}
+                </h1>
+              </div>
+              <div className="text-right">
+                <div className="flex justify-end">
+                  <UnitBrandBlock unit={unit} />
+                </div>
+                <p className="mt-3 font-mono text-xs uppercase tracking-[0.28em] text-white/44">
+                  Unit
+                </p>
+                <p className="mt-2 text-3xl font-medium text-white">{unit.displayName}</p>
+                <p className="mt-1 text-base text-white/64">
+                  {unit.apparatus} / {unit.station} / {unit.radioName}
+                </p>
+                {unit.coverageDisplayName ? (
+                  <p className="mt-2 text-sm text-amber-100/78">
+                    Covered by {unit.coverageDisplayName}
+                  </p>
+                ) : null}
+              </div>
             </div>
-            <p className="mt-6 font-mono text-sm uppercase tracking-[0.38em] text-white/70">
-              Active Dispatch / {unit.displayName}
-            </p>
-            <h1 className="mt-5 overflow-hidden text-ellipsis whitespace-nowrap text-6xl font-semibold tracking-[-0.06em] sm:text-7xl 2xl:text-8xl">
-              {primaryDispatch.nature ?? "Dispatch Alert"}
-            </h1>
-            <div className="mt-8 h-px w-full max-w-6xl bg-white/18" />
-            <p className="mt-8 max-w-6xl text-5xl font-medium leading-[0.95] tracking-[-0.05em] text-white sm:text-6xl 2xl:text-7xl">
+            <div className="mt-6 h-px w-full max-w-6xl bg-white/18" />
+            <p className="mt-6 max-w-6xl text-5xl font-medium leading-[0.95] tracking-[-0.05em] text-white sm:text-6xl 2xl:text-7xl">
               {primaryDispatch.address ?? "Address not provided"}
             </p>
 
-            <div className="mt-8 grid gap-4 md:grid-cols-3">
+            <div className="mt-7 grid gap-4 md:grid-cols-3">
               <div className="rounded-[1.6rem] border border-white/15 bg-black/12 p-5">
                 <p className="font-mono text-sm uppercase tracking-[0.24em] text-white/62">
                   Incident
@@ -1319,7 +1331,7 @@ export function DispatchDashboard() {
               </div>
             </div>
 
-            <div className="mt-8 grid gap-4 md:grid-cols-3">
+            <div className="mt-7 grid gap-4 md:grid-cols-3">
               <div className="rounded-[1.6rem] border border-white/15 bg-black/12 p-5">
                 <p className="font-mono text-sm uppercase tracking-[0.24em] text-white/62">
                   Dispatch Time
@@ -1347,7 +1359,7 @@ export function DispatchDashboard() {
             </div>
           </div>
 
-          <div className="grid min-h-0 gap-4 xl:grid-rows-[auto_auto_minmax(0,1fr)_minmax(0,1fr)]">
+          <div className="grid min-h-0 gap-4 xl:grid-rows-[auto_minmax(0,1fr)_minmax(0,1fr)]">
             <div className="rounded-[1.9rem] border border-white/16 bg-black/16 px-6 py-6">
               <p className="font-mono text-sm uppercase tracking-[0.3em] text-white/62">
                 Elapsed Since Dispatch
@@ -1355,25 +1367,6 @@ export function DispatchDashboard() {
               <p className="mt-4 font-mono text-8xl font-medium tracking-[-0.06em]">
                 {featuredElapsed}
               </p>
-            </div>
-            <div className="rounded-[1.9rem] border border-white/16 bg-black/12 px-6 py-6">
-              <p className="font-mono text-sm uppercase tracking-[0.3em] text-white/62">
-                Unit
-              </p>
-              <div className="mt-4 flex justify-center">
-                <UnitBrandBlock unit={unit} />
-              </div>
-              <p className="mt-3 text-3xl font-medium">
-                {unit.displayName}
-              </p>
-              <p className="mt-1 text-lg text-white/74">
-                {unit.apparatus} / {unit.station} / {unit.radioName}
-              </p>
-              {unit.coverageDisplayName ? (
-                <p className="mt-3 rounded-[1.1rem] border border-amber-300/20 bg-amber-300/10 px-4 py-3 text-sm leading-6 text-amber-50/88">
-                  Covered by {unit.coverageDisplayName}
-                </p>
-              ) : null}
             </div>
             <div className="min-h-0 rounded-[1.9rem] border border-white/16 bg-black/12 px-6 py-6">
               <p className="font-mono text-sm uppercase tracking-[0.3em] text-white/62">
@@ -1417,6 +1410,16 @@ export function DispatchDashboard() {
                 </ul>
               </div>
             ) : null}
+            <div className="flex justify-end">
+              <button
+                type="button"
+                onClick={handleLogout}
+                disabled={loggingOut}
+                className="rounded-full border border-white/20 bg-black/12 px-5 py-3 font-mono text-xs uppercase tracking-[0.22em] text-white/80 transition hover:bg-black/20 disabled:cursor-not-allowed disabled:opacity-60"
+              >
+                {loggingOut ? "Logging Out" : "Log Out"}
+              </button>
+            </div>
           </div>
         </section>
       </main>
@@ -1436,32 +1439,26 @@ export function DispatchDashboard() {
         >
           {currentIdleScreen.artwork}
           <div className="absolute inset-0 bg-[linear-gradient(180deg,rgba(0,0,0,0.04),rgba(0,0,0,0.34))]" />
-          <div className="relative grid h-full gap-10 px-10 py-10 sm:px-12 sm:py-12 xl:grid-cols-[minmax(0,1fr)_220px]">
+          <div className="relative grid h-full gap-8 px-10 py-10 sm:px-12 sm:py-12 xl:grid-cols-[minmax(0,1fr)_220px]">
             <div className="flex min-h-0 min-w-0 flex-col">
-              <div className="flex items-start justify-between gap-4">
+              <div className="grid gap-6 xl:grid-cols-[auto_minmax(0,1fr)] xl:items-start">
                 <DepartmentLogo subtitle="Turnout Board" dark />
-                <button
-                  type="button"
-                  onClick={handleLogout}
-                  disabled={loggingOut}
-                  className="rounded-full border border-white/14 bg-black/14 px-5 py-3 font-mono text-xs uppercase tracking-[0.22em] text-white/78 transition hover:bg-black/24 disabled:cursor-not-allowed disabled:opacity-60"
-                >
-                  {loggingOut ? "Logging Out" : "Log Out"}
-                </button>
+                <div className="min-w-0 xl:px-2">
+                  <p className="font-mono text-sm uppercase tracking-[0.34em] text-white/58">
+                    {currentIdleScreen.eyebrow}
+                  </p>
+                  <h1 className="mt-4 max-w-5xl text-5xl font-semibold leading-[0.92] tracking-[-0.07em] text-white sm:text-6xl 2xl:text-[6rem]">
+                    {currentIdleScreen.title}
+                  </h1>
+                  <p className="mt-4 max-w-4xl text-xl leading-tight text-white/80 2xl:text-2xl">
+                    {currentIdleScreen.description}
+                  </p>
+                </div>
               </div>
-              <p className="mt-6 font-mono text-sm uppercase tracking-[0.34em] text-white/58">
-                {currentIdleScreen.eyebrow}
-              </p>
-              <h1 className="mt-5 max-w-6xl overflow-hidden text-ellipsis whitespace-nowrap text-6xl font-semibold tracking-[-0.07em] sm:text-7xl 2xl:text-[7rem]">
-                {currentIdleScreen.title}
-              </h1>
-              <p className="mt-5 max-w-4xl text-2xl leading-tight text-white/80 2xl:text-3xl">
-                {currentIdleScreen.description}
-              </p>
 
               <div
                 ref={idleContentRef}
-                className={`mt-10 min-h-0 flex-1 ${
+                className={`mt-6 min-h-0 flex-1 ${
                   currentIdleScreen.scrollable ? "overflow-y-auto pr-3" : ""
                 }`}
               >
@@ -1470,15 +1467,15 @@ export function DispatchDashboard() {
             </div>
 
             <div className="hidden xl:flex xl:flex-col xl:items-end xl:justify-between">
-              <div className="text-right">
-                <div className="mb-5 flex justify-end">
+              <div className="w-full text-right">
+                <div className="flex justify-end">
                   <UnitBrandBlock unit={unit} />
                 </div>
-                <p className="font-mono text-xs uppercase tracking-[0.28em] text-white/44">
+                <p className="mt-3 font-mono text-xs uppercase tracking-[0.28em] text-white/44">
                   Unit
                 </p>
-                <p className="mt-3 text-3xl font-medium text-white">{unit.displayName}</p>
-                <p className="mt-2 text-base text-white/64">
+                <p className="mt-2 text-3xl font-medium text-white">{unit.displayName}</p>
+                <p className="mt-1 text-base text-white/64">
                   {unit.apparatus} / {unit.station} / {unit.radioName}
                 </p>
                 {unit.coverageDisplayName ? (
@@ -1488,6 +1485,14 @@ export function DispatchDashboard() {
                 ) : null}
               </div>
               <div className="text-right">
+                <button
+                  type="button"
+                  onClick={handleLogout}
+                  disabled={loggingOut}
+                  className="rounded-full border border-white/14 bg-black/14 px-5 py-3 font-mono text-xs uppercase tracking-[0.22em] text-white/78 transition hover:bg-black/24 disabled:cursor-not-allowed disabled:opacity-60"
+                >
+                  {loggingOut ? "Logging Out" : "Log Out"}
+                </button>
                 <p className="font-mono text-xs uppercase tracking-[0.28em] text-white/40">
                   Screen
                 </p>

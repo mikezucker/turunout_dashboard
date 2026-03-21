@@ -18,26 +18,32 @@ const NOAA_SOURCE_LABEL = "NOAA / National Weather Service";
 const WEATHER_DISPLAY_LOCATION = "Morristown, NJ";
 const MORRISTOWN_LAT = 40.7968;
 const MORRISTOWN_LON = -74.4815;
-const RAINVIEWER_API_URL = "https://api.rainviewer.com/public/weather-maps.json";
+const WINDY_ZOOM_LEVEL = "9";
 
-function rainViewerEmbedUrl() {
+function windyEmbedUrl() {
   const params = new URLSearchParams({
-    loc: `${MORRISTOWN_LAT},${MORRISTOWN_LON},7`,
-    oFa: "0",
-    oC: "0",
-    oU: "0",
-    oCS: "1",
-    oF: "0",
-    oAP: "1",
-    c: "2",
-    o: "83",
-    mlayer: "0",
-    ts: "1",
-    sm: "1",
-    sn: "1",
+    overlay: "radar",
+    level: "surface",
+    lat: MORRISTOWN_LAT.toFixed(4),
+    lon: MORRISTOWN_LON.toFixed(4),
+    zoom: WINDY_ZOOM_LEVEL,
+    product: "radar",
+    menu: "",
+    message: "",
+    marker: "",
+    calendar: "",
+    pressure: "",
+    type: "map",
+    location: "coordinates",
+    detail: "",
+    detailLat: MORRISTOWN_LAT.toFixed(4),
+    detailLon: MORRISTOWN_LON.toFixed(4),
+    metricWind: "mph",
+    metricTemp: "f",
+    radarRange: "-1",
   });
 
-  return `https://www.rainviewer.com/map.html?${params.toString()}`;
+  return `https://embed.windy.com/embed2.html?${params.toString()}`;
 }
 
 function asDictionary(value: unknown): Dictionary | null {
@@ -174,76 +180,12 @@ async function fetchJson(url: string) {
   return payload;
 }
 
-function radarUrls(radarStation: string | null) {
-  if (!radarStation) {
-    return { radarImageUrl: null, radarFrameImageUrls: [], radarPageUrl: null };
-  }
-
-  const station = radarStation.toUpperCase();
-
+function windyRadarUrls() {
   return {
-    radarImageUrl: `https://radar.weather.gov/ridge/standard/${station}_loop.gif`,
+    radarImageUrl: null,
     radarFrameImageUrls: [],
-    radarPageUrl: `https://radar.weather.gov/station/${station}/standard`,
+    radarPageUrl: windyEmbedUrl(),
   };
-}
-
-function pickArray(record: Dictionary | null, key: string) {
-  if (!record) {
-    return [];
-  }
-
-  const value = record[key];
-  return Array.isArray(value) ? value : [];
-}
-
-async function fetchRainViewerRadar() {
-  try {
-    const response = await fetch(RAINVIEWER_API_URL, {
-      cache: "no-store",
-      signal: AbortSignal.timeout(weatherTimeoutMs()),
-    });
-
-    if (!response.ok) {
-      return null;
-    }
-
-    const payload = (await response.json()) as unknown;
-    const root = asDictionary(payload);
-    const host = pickString(root, "host");
-    const radar = asDictionary(root?.radar);
-    const pastFrames = pickArray(radar, "past")
-      .map((frame) => asDictionary(frame))
-      .filter((frame): frame is Dictionary => frame !== null);
-
-    if (!host || pastFrames.length === 0) {
-      return null;
-    }
-
-    const radarFrameImageUrls = pastFrames.slice(-6).flatMap((frame) => {
-      const path = pickString(frame, "path");
-
-      if (!path) {
-        return [];
-      }
-
-      return [
-        `${host}${path}/512/7/${MORRISTOWN_LAT.toFixed(4)}/${MORRISTOWN_LON.toFixed(4)}/2/1_1.png`,
-      ];
-    });
-
-    if (radarFrameImageUrls.length === 0) {
-      return null;
-    }
-
-    return {
-      radarImageUrl: radarFrameImageUrls.at(-1) ?? null,
-      radarFrameImageUrls,
-      radarPageUrl: rainViewerEmbedUrl(),
-    };
-  } catch {
-    return null;
-  }
 }
 
 function fallbackWeather(unit: UnitProfile, reason?: string): LiveWeatherData {
@@ -316,7 +258,6 @@ export async function fetchLiveWeather(unit: UnitProfile): Promise<LiveWeatherDa
   }
 
   try {
-    const rainViewerRadarPromise = fetchRainViewerRadar();
     const point = asDictionary(
       await fetchJson(
         `https://api.weather.gov/points/${unit.weatherLatitude.toFixed(4)},${unit.weatherLongitude.toFixed(4)}`,
@@ -325,9 +266,7 @@ export async function fetchLiveWeather(unit: UnitProfile): Promise<LiveWeatherDa
     const pointProperties = asDictionary(point?.properties);
     const forecastHourlyUrl = pickString(pointProperties, "forecastHourly");
     const stationsUrl = pickString(pointProperties, "observationStations");
-    const radarStation = pickString(pointProperties, "radarStation");
     const location = formatLocation(unit, pointProperties);
-    const rainViewerRadar = await rainViewerRadarPromise;
 
     if (!forecastHourlyUrl || !stationsUrl) {
       return fallbackWeather(unit, "NOAA weather point lookup did not return forecast endpoints.");
@@ -471,7 +410,7 @@ export async function fetchLiveWeather(unit: UnitProfile): Promise<LiveWeatherDa
         pickString(forecastProperties, "updated") ??
         null,
       sourceLabel: NOAA_SOURCE_LABEL,
-      ...(rainViewerRadar ?? radarUrls(radarStation)),
+      ...windyRadarUrls(),
       isLive: true,
     };
   } catch (error) {
