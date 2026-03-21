@@ -6,6 +6,8 @@ export type DispatchRecord = {
   unit: string | null;
   status: string | null;
   dispatchedAt: string | null;
+  lastActivityAt: string | null;
+  message: string | null;
   enrouteAt: string | null;
   raw: unknown;
 };
@@ -105,6 +107,18 @@ const CLOSED_STATUSES = [
   "canceled",
   "service complete",
   "out of service",
+];
+
+const STALE_OPEN_DISPATCH_MS = 12 * 60 * 60 * 1000;
+const RESOLVED_MESSAGE_PATTERNS = [
+  /\ball units clear\b/i,
+  /\ball fd units clear\b/i,
+  /\bscene turned over\b/i,
+  /\bturned over to\b/i,
+  /\brma\b/i,
+  /\bservice complete\b/i,
+  /\bincident complete\b/i,
+  /\bcommand terminated\b/i,
 ];
 
 function getConfig(): PollConfig {
@@ -305,6 +319,31 @@ function resolveEmsDutyDispatchTime(record: Dictionary, incidentNumber: string |
   });
 }
 
+function extractLatestCadActivityTimestamp(message: string | null) {
+  if (!message) {
+    return null;
+  }
+
+  const matches = message.matchAll(/\[(\d{2}\/\d{2}\/\d{2} \d{2}:\d{2}:\d{2})[^\]]*\]/g);
+  let latestTimestamp: number | null = null;
+
+  for (const match of matches) {
+    const parsed = parseCadTimestamp(`[${match[1]}]`);
+
+    if (!parsed) {
+      continue;
+    }
+
+    const timestamp = parsed.getTime();
+
+    if (latestTimestamp === null || timestamp > latestTimestamp) {
+      latestTimestamp = timestamp;
+    }
+  }
+
+  return latestTimestamp === null ? null : new Date(latestTimestamp).toISOString();
+}
+
 function normalizeRecord(item: unknown, index: number): DispatchRecord | null {
   const record = asDictionary(item);
 
@@ -328,6 +367,12 @@ function normalizeRecord(item: unknown, index: number): DispatchRecord | null {
     dispatchedAt:
       resolveEmsDutyDispatchTime(record, incidentNumber) ??
       pickString(record, TIMESTAMP_KEYS),
+    lastActivityAt:
+      pickString(record, ["updatedAt", "updated_at", "lastUpdatedAt"]) ??
+      extractLatestCadActivityTimestamp(stringifyValue(record.message)) ??
+      resolveEmsDutyDispatchTime(record, incidentNumber) ??
+      pickString(record, TIMESTAMP_KEYS),
+    message: stringifyValue(record.message),
     enrouteAt: pickString(record, ENROUTE_KEYS),
     raw: item,
   };
@@ -345,6 +390,48 @@ export function isClosedDispatchStatus(status: string | null) {
   }
 
   return CLOSED_STATUSES.includes(status.trim().toLowerCase());
+}
+
+export function isResolvedDispatch(
+  dispatch: Pick<DispatchRecord, "status" | "message">,
+) {
+  if (isClosedDispatchStatus(dispatch.status)) {
+    return true;
+  }
+
+  if (!dispatch.message) {
+    return false;
+  }
+
+  const message = dispatch.message;
+  return RESOLVED_MESSAGE_PATTERNS.some((pattern) => pattern.test(message));
+}
+
+export function isStaleOpenDispatch(
+  dispatch: Pick<DispatchRecord, "status" | "dispatchedAt" | "lastActivityAt" | "message">,
+  now = Date.now(),
+) {
+  if (isResolvedDispatch(dispatch)) {
+    return false;
+  }
+
+  if (dispatch.status?.trim().toLowerCase() !== "open") {
+    return false;
+  }
+
+  const latestActivityAt = dispatch.lastActivityAt ?? dispatch.dispatchedAt;
+
+  if (!latestActivityAt) {
+    return false;
+  }
+
+  const latestActivityTimestamp = Date.parse(latestActivityAt);
+
+  if (!Number.isFinite(latestActivityTimestamp)) {
+    return false;
+  }
+
+  return now - latestActivityTimestamp >= STALE_OPEN_DISPATCH_MS;
 }
 
 function parseDispatchTimestamp(value: string | null) {

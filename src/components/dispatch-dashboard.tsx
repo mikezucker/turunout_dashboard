@@ -3,7 +3,8 @@
 import Image from "next/image";
 import { useEffect, useMemo, useRef, useState } from "react";
 import {
-  isClosedDispatchStatus,
+  isResolvedDispatch,
+  isStaleOpenDispatch,
   type DispatchRecord,
 } from "@/lib/dispatches";
 import type { SerializedUnitProfile } from "@/lib/unit-session";
@@ -176,6 +177,24 @@ function turnoutState(dispatch: DispatchRecord) {
   }
 
   return "Awaiting En Route";
+}
+
+function dispatchDisplayStatus(dispatch: DispatchRecord, now: number) {
+  if (isStaleOpenDispatch(dispatch, now)) {
+    return "Open - Stale";
+  }
+
+  return dispatch.status ?? turnoutState(dispatch);
+}
+
+function formatDispatchLastActivity(dispatch: DispatchRecord) {
+  const lastActivityAt = dispatch.lastActivityAt ?? dispatch.dispatchedAt;
+
+  if (!lastActivityAt) {
+    return "Last activity unavailable";
+  }
+
+  return `Last activity ${formatTime(lastActivityAt)}`;
 }
 
 function weatherArtwork(summary: string) {
@@ -461,7 +480,7 @@ export function DispatchDashboard() {
   const activeDispatches = useMemo(
     () =>
       dispatches.filter(
-        (dispatch) => !isClosedDispatchStatus(dispatch.status),
+        (dispatch) => !isResolvedDispatch(dispatch),
       ),
     [dispatches],
   );
@@ -547,7 +566,7 @@ export function DispatchDashboard() {
         let latestNewDispatch: DispatchRecord | null = null;
 
         for (const dispatch of data.dispatches) {
-          if (isClosedDispatchStatus(dispatch.status)) {
+          if (isResolvedDispatch(dispatch)) {
             continue;
           }
 
@@ -566,7 +585,7 @@ export function DispatchDashboard() {
             data.dispatches.find(
               (dispatch) =>
                 dispatch.id === featuredDispatch.id &&
-                !isClosedDispatchStatus(dispatch.status),
+                !isResolvedDispatch(dispatch),
             ) ??
             null;
 
@@ -819,10 +838,6 @@ export function DispatchDashboard() {
     () => (unit ? activeWeatherAlert(unit.weatherDetails) : null),
     [unit],
   );
-  const isEmbeddedRadar = Boolean(
-    unit?.weatherRadarPageUrl?.includes("embed.windy.com") ||
-      unit?.weatherRadarPageUrl?.includes("rainviewer.com/map.html"),
-  );
   const activeWeatherRadarImageUrl = useMemo(() => {
     if (!unit) {
       return null;
@@ -1042,15 +1057,7 @@ export function DispatchDashboard() {
                 <p className="text-sm text-white/60">Centered on Morris Township</p>
               </div>
               <div className="mt-5 overflow-hidden rounded-[1.7rem] border border-white/12 bg-black/24">
-                {isEmbeddedRadar && unit.weatherRadarPageUrl ? (
-                  <iframe
-                    src={unit.weatherRadarPageUrl}
-                    title={`${unit.weatherLocation} radar map`}
-                    className="h-[clamp(22rem,40vh,32rem)] w-full border-0"
-                    loading="lazy"
-                    referrerPolicy="strict-origin"
-                  />
-                ) : activeWeatherRadarImageUrl ? (
+                {activeWeatherRadarImageUrl ? (
                   <a
                     href={unit.weatherRadarPageUrl ?? activeWeatherRadarImageUrl}
                     target="_blank"
@@ -1072,10 +1079,10 @@ export function DispatchDashboard() {
                 )}
               </div>
               <p className="mt-4 text-base leading-7 text-white/64">
-                Windy radar map is centered on Morristown, NJ.
+                NOAA radar loop for Morristown area coverage.
               </p>
               <p className="mt-2 text-sm text-white/48">
-                Radar imagery by Windy.
+                Radar imagery by the National Weather Service.
               </p>
             </div>
           </div>
@@ -1244,7 +1251,6 @@ export function DispatchDashboard() {
     unit,
     flashingWeatherAlert,
     weatherFactors,
-    isEmbeddedRadar,
     activeWeatherRadarImageUrl,
     workOrders,
     workOrdersMessage,
@@ -1524,8 +1530,13 @@ export function DispatchDashboard() {
                   Status
                 </p>
                 <p className="mt-3 text-3xl font-medium">
-                  {(primaryDispatch.status ?? turnoutState(primaryDispatch)).toUpperCase()}
+                  {dispatchDisplayStatus(primaryDispatch, now).toUpperCase()}
                 </p>
+                {isStaleOpenDispatch(primaryDispatch, now) ? (
+                  <p className="mt-2 text-sm text-amber-100/80">
+                    {formatDispatchLastActivity(primaryDispatch)}
+                  </p>
+                ) : null}
               </div>
             </div>
 
@@ -1601,7 +1612,7 @@ export function DispatchDashboard() {
                       <div className="mt-3 flex flex-wrap gap-x-4 gap-y-2 font-mono text-xs uppercase tracking-[0.18em] text-white/58">
                         <span>{dispatch.incidentNumber ?? dispatch.id}</span>
                         <span>{formatShortTime(dispatch.dispatchedAt)}</span>
-                        <span>{(dispatch.status ?? turnoutState(dispatch)).toUpperCase()}</span>
+                        <span>{dispatchDisplayStatus(dispatch, now).toUpperCase()}</span>
                       </div>
                     </li>
                   ))}
