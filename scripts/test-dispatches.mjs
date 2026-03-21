@@ -38,7 +38,7 @@ const {
 
 assert.equal(
   parseCadTimestamp("[03/20/26 07:52:16 483 C17] Interrogation is complete.")?.toISOString(),
-  new Date("2026-03-20T07:52:16").toISOString(),
+  "2026-03-20T11:52:16.000Z",
 );
 printResult("parses CAD timestamps");
 
@@ -55,7 +55,7 @@ assert.equal(
 [03/20/26 07:52:16 483 C17]
  Interrogation is complete for E260790014.`,
   }),
-  new Date("2026-03-20T07:52:16").toISOString(),
+  "2026-03-20T11:52:16.000Z",
 );
 printResult("prefers interrogation-complete time for EMS duty dispatches");
 
@@ -67,7 +67,7 @@ assert.equal(
 [03/20/26 16:08:50 448 C10] ATL ALS NTFD - MEDIC 12
 [03/20/26 16:07:25 448 C10] PER MM GARAGE MM66 RESPONDING`,
   }),
-  new Date("2026-03-20T16:08:50").toISOString(),
+  "2026-03-20T20:08:50.000Z",
 );
 printResult("falls back to the first timestamped CAD line when EMS dispatch markers are absent");
 

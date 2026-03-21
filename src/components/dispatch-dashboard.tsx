@@ -88,6 +88,7 @@ const WEATHER_POLL_INTERVAL_MS = Number(
   process.env.NEXT_PUBLIC_WEATHER_POLL_INTERVAL_MS ?? "300000",
 );
 const STATS_POLL_INTERVAL_MS = 15 * 60 * 1000;
+const DISPATCH_TIME_ZONE = "America/New_York";
 
 function formatTime(value: string | null) {
   if (!value) {
@@ -103,6 +104,7 @@ function formatTime(value: string | null) {
   return new Intl.DateTimeFormat("en-US", {
     dateStyle: "medium",
     timeStyle: "medium",
+    timeZone: DISPATCH_TIME_ZONE,
   }).format(parsed);
 }
 
@@ -120,6 +122,7 @@ function formatShortTime(value: string | null) {
   return new Intl.DateTimeFormat("en-US", {
     hour: "numeric",
     minute: "2-digit",
+    timeZone: DISPATCH_TIME_ZONE,
   }).format(parsed);
 }
 
@@ -136,6 +139,7 @@ function formatDateOnly(value: string | null) {
 
   return new Intl.DateTimeFormat("en-US", {
     dateStyle: "medium",
+    timeZone: DISPATCH_TIME_ZONE,
   }).format(parsed);
 }
 
@@ -484,6 +488,10 @@ export function DispatchDashboard() {
       ),
     [dispatches],
   );
+  const freshDispatches = useMemo(
+    () => activeDispatches.filter((dispatch) => !isStaleOpenDispatch(dispatch, now)),
+    [activeDispatches, now],
+  );
 
   useEffect(() => {
     const intervalId = window.setInterval(() => setNow(Date.now()), 1000);
@@ -566,7 +574,7 @@ export function DispatchDashboard() {
         let latestNewDispatch: DispatchRecord | null = null;
 
         for (const dispatch of data.dispatches) {
-          if (isResolvedDispatch(dispatch)) {
+          if (isResolvedDispatch(dispatch) || isStaleOpenDispatch(dispatch)) {
             continue;
           }
 
@@ -585,7 +593,8 @@ export function DispatchDashboard() {
             data.dispatches.find(
               (dispatch) =>
                 dispatch.id === featuredDispatch.id &&
-                !isResolvedDispatch(dispatch),
+                !isResolvedDispatch(dispatch) &&
+                !isStaleOpenDispatch(dispatch),
             ) ??
             null;
 
@@ -798,19 +807,19 @@ export function DispatchDashboard() {
   }, [unitId]);
 
   const primaryDispatch = useMemo(() => {
-    if (featuredDispatch) {
+    if (featuredDispatch && !isStaleOpenDispatch(featuredDispatch, now)) {
       return featuredDispatch;
     }
 
-    return activeDispatches[0] ?? null;
-  }, [activeDispatches, featuredDispatch]);
+    return freshDispatches[0] ?? null;
+  }, [featuredDispatch, freshDispatches, now]);
   const additionalDispatches = useMemo(() => {
     if (!primaryDispatch) {
-      return [];
+      return freshDispatches;
     }
 
-    return activeDispatches.filter((dispatch) => dispatch.id !== primaryDispatch.id);
-  }, [activeDispatches, primaryDispatch]);
+    return freshDispatches.filter((dispatch) => dispatch.id !== primaryDispatch.id);
+  }, [freshDispatches, primaryDispatch]);
 
   const featuredElapsed = useMemo(
     () => formatDurationBetween(primaryDispatch?.dispatchedAt ?? null, now),

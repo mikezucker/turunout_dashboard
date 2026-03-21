@@ -40,6 +40,8 @@ type DispatchFetchResult = {
 
 type Dictionary = Record<string, unknown>;
 
+const DISPATCH_TIME_ZONE = "America/New_York";
+
 const CANDIDATE_ARRAY_PATHS = [
   ["dispatches"],
   ["incidents"],
@@ -110,6 +112,7 @@ const CLOSED_STATUSES = [
 ];
 
 const STALE_OPEN_DISPATCH_MS = 12 * 60 * 60 * 1000;
+const SHORT_LIVED_OPEN_RESOLVE_MS = 4 * 60 * 60 * 1000;
 const RESOLVED_MESSAGE_PATTERNS = [
   /\ball units clear\b/i,
   /\ball fd units clear\b/i,
@@ -120,6 +123,13 @@ const RESOLVED_MESSAGE_PATTERNS = [
   /\bincident complete\b/i,
   /\bcommand terminated\b/i,
 ];
+const SHORT_LIVED_CALL_TYPES = new Set([
+  "ASSIST POLICE",
+  "PUBLIC SERVICE",
+  "STANDBY",
+  "ELEVATOR EMERGENCY [56]",
+  "LOCK OUT   TAG OUT ELEVATOR FD NOTIFICATION ONLY",
+]);
 
 function getConfig(): PollConfig {
   const timeout = Number(process.env.FIRSTDUE_TIMEOUT_MS ?? "8000");
@@ -239,6 +249,48 @@ function parseArrayOfStrings(value: unknown) {
     .filter((item): item is string => item !== null);
 }
 
+function getTimeZoneOffsetMs(date: Date, timeZone: string) {
+  const timeZoneName = new Intl.DateTimeFormat("en-US", {
+    timeZone,
+    timeZoneName: "shortOffset",
+  })
+    .formatToParts(date)
+    .find((part) => part.type === "timeZoneName")?.value;
+
+  const match = timeZoneName?.match(/^GMT([+-])(\d{1,2})(?::(\d{2}))?$/);
+
+  if (!match) {
+    return 0;
+  }
+
+  const [, sign, hours, minutes = "00"] = match;
+  const offsetMs =
+    (Number(hours) * 60 + Number(minutes)) * 60 * 1000;
+
+  return sign === "+" ? offsetMs : -offsetMs;
+}
+
+function parseCadDateInEasternTime({
+  year,
+  month,
+  day,
+  hours,
+  minutes,
+  seconds,
+}: {
+  year: number;
+  month: number;
+  day: number;
+  hours: number;
+  minutes: number;
+  seconds: number;
+}) {
+  const wallClockAsUtc = Date.UTC(year, month - 1, day, hours, minutes, seconds);
+  const offsetMs = getTimeZoneOffsetMs(new Date(wallClockAsUtc), DISPATCH_TIME_ZONE);
+
+  return new Date(wallClockAsUtc - offsetMs);
+}
+
 export function parseCadTimestamp(rawValue: string) {
   const match = rawValue.match(
     /\[(\d{2})\/(\d{2})\/(\d{2}) (\d{2}):(\d{2}):(\d{2})/,
@@ -249,9 +301,14 @@ export function parseCadTimestamp(rawValue: string) {
   }
 
   const [, month, day, year, hours, minutes, seconds] = match;
-  const fullYear = `20${year}`;
-  const isoValue = `${fullYear}-${month}-${day}T${hours}:${minutes}:${seconds}`;
-  const parsed = new Date(isoValue);
+  const parsed = parseCadDateInEasternTime({
+    year: Number(`20${year}`),
+    month: Number(month),
+    day: Number(day),
+    hours: Number(hours),
+    minutes: Number(minutes),
+    seconds: Number(seconds),
+  });
 
   return Number.isNaN(parsed.getTime()) ? null : parsed;
 }
@@ -393,7 +450,11 @@ export function isClosedDispatchStatus(status: string | null) {
 }
 
 export function isResolvedDispatch(
-  dispatch: Pick<DispatchRecord, "status" | "message">,
+  dispatch: Pick<
+    DispatchRecord,
+    "status" | "message" | "nature" | "dispatchedAt" | "lastActivityAt"
+  >,
+  now = Date.now(),
 ) {
   if (isClosedDispatchStatus(dispatch.status)) {
     return true;
@@ -404,14 +465,40 @@ export function isResolvedDispatch(
   }
 
   const message = dispatch.message;
-  return RESOLVED_MESSAGE_PATTERNS.some((pattern) => pattern.test(message));
+  if (RESOLVED_MESSAGE_PATTERNS.some((pattern) => pattern.test(message))) {
+    return true;
+  }
+
+  if (dispatch.status?.trim().toLowerCase() !== "open") {
+    return false;
+  }
+
+  const normalizedNature = dispatch.nature?.trim().toUpperCase() ?? "";
+  if (!SHORT_LIVED_CALL_TYPES.has(normalizedNature)) {
+    return false;
+  }
+
+  const latestActivityAt = dispatch.lastActivityAt ?? dispatch.dispatchedAt;
+  if (!latestActivityAt) {
+    return false;
+  }
+
+  const latestActivityTimestamp = Date.parse(latestActivityAt);
+  if (!Number.isFinite(latestActivityTimestamp)) {
+    return false;
+  }
+
+  return now - latestActivityTimestamp >= SHORT_LIVED_OPEN_RESOLVE_MS;
 }
 
 export function isStaleOpenDispatch(
-  dispatch: Pick<DispatchRecord, "status" | "dispatchedAt" | "lastActivityAt" | "message">,
+  dispatch: Pick<
+    DispatchRecord,
+    "status" | "dispatchedAt" | "lastActivityAt" | "message" | "nature"
+  >,
   now = Date.now(),
 ) {
-  if (isResolvedDispatch(dispatch)) {
+  if (isResolvedDispatch(dispatch, now)) {
     return false;
   }
 
