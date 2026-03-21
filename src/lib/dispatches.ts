@@ -215,6 +215,96 @@ function inferArray(payload: unknown): unknown[] {
   return [];
 }
 
+function parseArrayOfStrings(value: unknown) {
+  if (!Array.isArray(value)) {
+    return [];
+  }
+
+  return value
+    .map((item) => stringifyValue(item))
+    .filter((item): item is string => item !== null);
+}
+
+export function parseCadTimestamp(rawValue: string) {
+  const match = rawValue.match(
+    /\[(\d{2})\/(\d{2})\/(\d{2}) (\d{2}):(\d{2}):(\d{2})/,
+  );
+
+  if (!match) {
+    return null;
+  }
+
+  const [, month, day, year, hours, minutes, seconds] = match;
+  const fullYear = `20${year}`;
+  const isoValue = `${fullYear}-${month}-${day}T${hours}:${minutes}:${seconds}`;
+  const parsed = new Date(isoValue);
+
+  return Number.isNaN(parsed.getTime()) ? null : parsed;
+}
+
+export function resolveDutyDispatchTimestampFromCadMessage({
+  incidentNumber,
+  unitCodes,
+  message,
+}: {
+  incidentNumber: string | null;
+  unitCodes: string[];
+  message: string | null;
+}) {
+  if (!incidentNumber?.toUpperCase().startsWith("E")) {
+    return null;
+  }
+
+  const normalizedUnitCodes = unitCodes.map((code) => code.trim().toUpperCase());
+
+  if (!normalizedUnitCodes.includes("F22DUTY")) {
+    return null;
+  }
+
+  if (!message) {
+    return null;
+  }
+
+  const lines = message.split("\n");
+  const timestampPattern = /\[\d{2}\/\d{2}\/\d{2} \d{2}:\d{2}:\d{2}/;
+
+  function timestampAtOrBefore(index: number) {
+    for (let currentIndex = index; currentIndex >= 0; currentIndex -= 1) {
+      if (timestampPattern.test(lines[currentIndex] ?? "")) {
+        return lines[currentIndex] ?? null;
+      }
+    }
+
+    return null;
+  }
+
+  const interrogationIndex = lines.findIndex((line) =>
+    /Interrogation is complete/i.test(line),
+  );
+
+  if (interrogationIndex >= 0) {
+    return parseCadTimestamp(timestampAtOrBefore(interrogationIndex) ?? "")?.toISOString() ?? null;
+  }
+
+  const dispatchCodeIndex = lines.findIndex((line) => /Dispatch Code:/i.test(line));
+
+  if (dispatchCodeIndex >= 0) {
+    return parseCadTimestamp(timestampAtOrBefore(dispatchCodeIndex) ?? "")?.toISOString() ?? null;
+  }
+
+  const firstTimestampedLine = lines.find((line) => timestampPattern.test(line)) ?? null;
+
+  return parseCadTimestamp(firstTimestampedLine ?? "")?.toISOString() ?? null;
+}
+
+function resolveEmsDutyDispatchTime(record: Dictionary, incidentNumber: string | null) {
+  return resolveDutyDispatchTimestampFromCadMessage({
+    incidentNumber,
+    unitCodes: parseArrayOfStrings(record.unit_codes),
+    message: stringifyValue(record.message),
+  });
+}
+
 function normalizeRecord(item: unknown, index: number): DispatchRecord | null {
   const record = asDictionary(item);
 
@@ -226,15 +316,18 @@ function normalizeRecord(item: unknown, index: number): DispatchRecord | null {
     pickString(record, ID_KEYS) ??
     pickString(record, INCIDENT_KEYS) ??
     `dispatch-${index}`;
+  const incidentNumber = pickString(record, INCIDENT_KEYS);
 
   return {
     id,
-    incidentNumber: pickString(record, INCIDENT_KEYS),
+    incidentNumber,
     address: pickString(record, ADDRESS_KEYS),
     nature: pickString(record, NATURE_KEYS),
     unit: pickString(record, UNIT_KEYS),
     status: pickString(record, STATUS_KEYS),
-    dispatchedAt: pickString(record, TIMESTAMP_KEYS),
+    dispatchedAt:
+      resolveEmsDutyDispatchTime(record, incidentNumber) ??
+      pickString(record, TIMESTAMP_KEYS),
     enrouteAt: pickString(record, ENROUTE_KEYS),
     raw: item,
   };
@@ -293,6 +386,22 @@ function dispatchUnitTokens(unitValue: string | null) {
   );
 }
 
+function matchesCandidateToken(dispatchToken: string, candidateToken: string) {
+  if (dispatchToken === candidateToken) {
+    return true;
+  }
+
+  // Some live feeds prefix radio aliases with an agency code, e.g. F22E2.
+  // Allow those tokens to match the unit's short alias without relying on a
+  // work-order apparatus record ID being reusable as a dispatch unit code.
+  return (
+    candidateToken.length >= 2 &&
+    candidateToken.length <= 4 &&
+    dispatchToken.length > candidateToken.length &&
+    dispatchToken.endsWith(candidateToken)
+  );
+}
+
 export function filterDispatchesForUnit(
   dispatches: DispatchRecord[],
   unit: UnitMatcher | null,
@@ -326,8 +435,10 @@ export function filterDispatchesForUnit(
     }
 
     for (const token of candidateTokens) {
-      if (tokens.has(token)) {
-        return true;
+      for (const dispatchToken of tokens) {
+        if (matchesCandidateToken(dispatchToken, token)) {
+          return true;
+        }
       }
     }
 

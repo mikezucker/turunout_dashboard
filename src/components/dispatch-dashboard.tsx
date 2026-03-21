@@ -3,6 +3,7 @@
 import Image from "next/image";
 import { useEffect, useMemo, useRef, useState } from "react";
 import {
+  isClosedDispatchStatus,
   type DispatchRecord,
 } from "@/lib/dispatches";
 import type { SerializedUnitProfile } from "@/lib/unit-session";
@@ -51,6 +52,17 @@ type ScheduleResponse = {
   }>;
 };
 
+type StatsResponse = {
+  ok: boolean;
+  message: string | null;
+  sourceLabel: string | null;
+  year: number;
+  totalDepartmentCalls: number;
+  totalApparatusCalls: number;
+  emsCalls: number;
+  fireRescueCalls: number;
+};
+
 type IdleScreen = {
   id: string;
   label: string;
@@ -74,6 +86,7 @@ const IDLE_ROTATION_MS = Number(
 const WEATHER_POLL_INTERVAL_MS = Number(
   process.env.NEXT_PUBLIC_WEATHER_POLL_INTERVAL_MS ?? "300000",
 );
+const STATS_POLL_INTERVAL_MS = 15 * 60 * 1000;
 
 function formatTime(value: string | null) {
   if (!value) {
@@ -348,19 +361,19 @@ function UnitBrandBlock({ unit }: { unit: SerializedUnitProfile }) {
   return (
     <div className="flex items-center justify-center">
       {company.imageSrc ? (
-        <div className="flex h-48 w-48 items-center justify-center overflow-hidden">
+        <div className="flex h-64 w-64 items-center justify-center overflow-hidden 2xl:h-72 2xl:w-72">
           <Image
             src={company.imageSrc}
             alt={`${company.name} logo`}
-            width={192}
-            height={192}
+            width={288}
+            height={288}
             unoptimized
             className="h-full w-full object-contain drop-shadow-[0_10px_24px_rgba(0,0,0,0.24)]"
           />
         </div>
       ) : (
         <div
-          className={`flex h-18 w-18 items-center justify-center rounded-full border font-mono text-base font-medium tracking-[0.18em] ${company.className}`}
+          className={`flex h-24 w-24 items-center justify-center rounded-full border font-mono text-xl font-medium tracking-[0.18em] 2xl:h-28 2xl:w-28 ${company.className}`}
           aria-label={`${company.name} company badge`}
         >
           {company.monogram}
@@ -382,10 +395,10 @@ function DepartmentLogo({
       <Image
         src="/branding/mtfd-logo.svg"
         alt="Morris Township Fire Department logo"
-        width={160}
-        height={160}
+        width={224}
+        height={224}
         unoptimized
-        className="h-40 w-40 object-contain drop-shadow-[0_12px_28px_rgba(0,0,0,0.28)]"
+        className="h-52 w-52 object-contain drop-shadow-[0_12px_28px_rgba(0,0,0,0.28)] 2xl:h-56 2xl:w-56"
       />
       <div>
         <p
@@ -424,6 +437,13 @@ export function DispatchDashboard() {
     ScheduleResponse["entries"]
   >([]);
   const [scheduleMessage, setScheduleMessage] = useState<string | null>(null);
+  const [statsYear, setStatsYear] = useState<number>(new Date().getFullYear());
+  const [totalDepartmentCalls, setTotalDepartmentCalls] = useState(0);
+  const [totalApparatusCalls, setTotalApparatusCalls] = useState(0);
+  const [emsCalls, setEmsCalls] = useState(0);
+  const [fireRescueCalls, setFireRescueCalls] = useState(0);
+  const [statsMessage, setStatsMessage] = useState<string | null>(null);
+  const [statsSourceLabel, setStatsSourceLabel] = useState<string | null>(null);
   const [sessionReady, setSessionReady] = useState(false);
   const [loginUnitId, setLoginUnitId] = useState("");
   const [loginPassword, setLoginPassword] = useState("");
@@ -438,6 +458,13 @@ export function DispatchDashboard() {
   const workOrdersListRef = useRef<HTMLDivElement | null>(null);
   const unitId = unit?.id ?? null;
   const unitApparatusApiId = unit?.apparatusApiId ?? null;
+  const activeDispatches = useMemo(
+    () =>
+      dispatches.filter(
+        (dispatch) => !isClosedDispatchStatus(dispatch.status),
+      ),
+    [dispatches],
+  );
 
   useEffect(() => {
     const intervalId = window.setInterval(() => setNow(Date.now()), 1000);
@@ -520,6 +547,10 @@ export function DispatchDashboard() {
         let latestNewDispatch: DispatchRecord | null = null;
 
         for (const dispatch of data.dispatches) {
+          if (isClosedDispatchStatus(dispatch.status)) {
+            continue;
+          }
+
           if (!nextSeenIds.has(dispatch.id) && !latestNewDispatch) {
             latestNewDispatch = dispatch;
           }
@@ -532,7 +563,11 @@ export function DispatchDashboard() {
           setFeaturedDispatch(latestNewDispatch);
         } else if (featuredDispatch) {
           const updatedFeaturedDispatch =
-            data.dispatches.find((dispatch) => dispatch.id === featuredDispatch.id) ??
+            data.dispatches.find(
+              (dispatch) =>
+                dispatch.id === featuredDispatch.id &&
+                !isClosedDispatchStatus(dispatch.status),
+            ) ??
             null;
 
           if (!updatedFeaturedDispatch) {
@@ -685,20 +720,78 @@ export function DispatchDashboard() {
     };
   }, [unitId]);
 
+  useEffect(() => {
+    if (!unitId) {
+      setStatsYear(new Date().getFullYear());
+      setTotalDepartmentCalls(0);
+      setTotalApparatusCalls(0);
+      setEmsCalls(0);
+      setFireRescueCalls(0);
+      setStatsMessage(null);
+      setStatsSourceLabel(null);
+      return;
+    }
+
+    let active = true;
+
+    async function loadStats() {
+      try {
+        const response = await fetch("/api/stats", {
+          cache: "no-store",
+        });
+        const data = (await response.json()) as StatsResponse;
+
+        if (!active) {
+          return;
+        }
+
+        setStatsYear(data.year);
+        setTotalDepartmentCalls(data.totalDepartmentCalls);
+        setTotalApparatusCalls(data.totalApparatusCalls);
+        setEmsCalls(data.emsCalls);
+        setFireRescueCalls(data.fireRescueCalls);
+        setStatsMessage(data.message);
+        setStatsSourceLabel(data.sourceLabel);
+      } catch (error) {
+        if (!active) {
+          return;
+        }
+
+        setStatsYear(new Date().getFullYear());
+        setTotalDepartmentCalls(0);
+        setTotalApparatusCalls(0);
+        setEmsCalls(0);
+        setFireRescueCalls(0);
+        setStatsSourceLabel(null);
+        setStatsMessage(
+          error instanceof Error ? error.message : "Failed to load statistics.",
+        );
+      }
+    }
+
+    loadStats();
+    const intervalId = window.setInterval(loadStats, STATS_POLL_INTERVAL_MS);
+
+    return () => {
+      active = false;
+      window.clearInterval(intervalId);
+    };
+  }, [unitId]);
+
   const primaryDispatch = useMemo(() => {
     if (featuredDispatch) {
       return featuredDispatch;
     }
 
-    return dispatches[0] ?? null;
-  }, [dispatches, featuredDispatch]);
+    return activeDispatches[0] ?? null;
+  }, [activeDispatches, featuredDispatch]);
   const additionalDispatches = useMemo(() => {
     if (!primaryDispatch) {
       return [];
     }
 
-    return dispatches.filter((dispatch) => dispatch.id !== primaryDispatch.id);
-  }, [dispatches, primaryDispatch]);
+    return activeDispatches.filter((dispatch) => dispatch.id !== primaryDispatch.id);
+  }, [activeDispatches, primaryDispatch]);
 
   const featuredElapsed = useMemo(
     () => formatDurationBetween(primaryDispatch?.dispatchedAt ?? null, now),
@@ -752,7 +845,7 @@ export function DispatchDashboard() {
 
     const visibleScheduleEntries =
       scheduleEntries.length > 0
-        ? scheduleEntries.slice(0, 6)
+        ? scheduleEntries
         : [
             {
               id: "empty-schedule",
@@ -1038,11 +1131,116 @@ export function DispatchDashboard() {
           </div>
         ),
       },
+      {
+        id: "stats",
+        label: "Stats",
+        eyebrow: "Department Activity",
+        title: `${statsYear} call statistics`,
+        description:
+          statsMessage ??
+          `Year-to-date department call volume with ${unit.displayName} apparatus totals and Fire vs EMS split.`,
+        contentVersion: `stats:${statsYear}:${totalDepartmentCalls}:${totalApparatusCalls}:${emsCalls}:${fireRescueCalls}:${statsMessage ?? ""}`,
+        backgroundStyle: {
+          background:
+            "radial-gradient(circle at top left, rgba(255,255,255,0.08), transparent 20%), radial-gradient(circle at 82% 16%, rgba(78,219,161,0.16), transparent 18%), linear-gradient(140deg, rgba(14,56,49,1), rgba(10,32,39,0.96) 52%, rgba(8,19,27,1))",
+        },
+        artwork: (
+          <div className="pointer-events-none absolute inset-0 overflow-hidden">
+            <div className="absolute left-10 top-20 h-px w-64 bg-white/10" />
+            <div className="absolute left-10 top-28 h-px w-80 bg-white/7" />
+            <div className="absolute right-16 top-16 h-64 w-64 rounded-full border border-white/8" />
+            <div className="absolute right-28 top-28 h-40 w-40 rounded-full border border-emerald-300/10" />
+            <div className="absolute bottom-18 left-14 h-56 w-56 rounded-[2rem] border border-white/6" />
+          </div>
+        ),
+        content: (
+          <div className="grid h-full content-start gap-5 xl:grid-cols-[minmax(0,1.15fr)_minmax(320px,0.85fr)]">
+            <div className="grid gap-5 md:grid-cols-2">
+              <div className="rounded-[2rem] border border-white/12 bg-white/7 px-8 py-7">
+                <p className="font-mono text-sm uppercase tracking-[0.28em] text-white/56">
+                  Total Dept. Calls
+                </p>
+                <p className="mt-4 text-7xl font-semibold tracking-[-0.06em] text-white">
+                  {totalDepartmentCalls}
+                </p>
+                <p className="mt-4 text-lg text-white/68">Year to date</p>
+              </div>
+              <div className="rounded-[2rem] border border-white/12 bg-white/7 px-8 py-7">
+                <p className="font-mono text-sm uppercase tracking-[0.28em] text-white/56">
+                  Total Apparatus Calls
+                </p>
+                <p className="mt-4 text-7xl font-semibold tracking-[-0.06em] text-white">
+                  {totalApparatusCalls}
+                </p>
+                <p className="mt-4 text-lg text-white/68">{unit.displayName} year to date</p>
+              </div>
+              <div className="rounded-[2rem] border border-red-300/16 bg-red-300/8 px-8 py-7">
+                <p className="font-mono text-sm uppercase tracking-[0.28em] text-red-50/72">
+                  Fire
+                </p>
+                <p className="mt-4 text-7xl font-semibold tracking-[-0.06em] text-white">
+                  {fireRescueCalls}
+                </p>
+                <p className="mt-4 text-lg text-white/68">Department fire/rescue incidents</p>
+              </div>
+              <div className="rounded-[2rem] border border-sky-300/16 bg-sky-300/8 px-8 py-7">
+                <p className="font-mono text-sm uppercase tracking-[0.28em] text-sky-50/72">
+                  EMS
+                </p>
+                <p className="mt-4 text-7xl font-semibold tracking-[-0.06em] text-white">
+                  {emsCalls}
+                </p>
+                <p className="mt-4 text-lg text-white/68">Department EMS incidents</p>
+              </div>
+            </div>
+            <div className="rounded-[2rem] border border-white/12 bg-black/18 px-8 py-8">
+              <p className="font-mono text-sm uppercase tracking-[0.28em] text-white/56">
+                Stats Summary
+              </p>
+              <div className="mt-6 grid gap-4">
+                <div className="rounded-[1.5rem] border border-white/10 bg-white/6 px-5 py-5">
+                  <p className="font-mono text-xs uppercase tracking-[0.22em] text-white/54">
+                    Department Split
+                  </p>
+                  <p className="mt-3 text-2xl font-medium text-white">
+                    {fireRescueCalls} Fire / {emsCalls} EMS
+                  </p>
+                </div>
+                <div className="rounded-[1.5rem] border border-white/10 bg-white/6 px-5 py-5">
+                  <p className="font-mono text-xs uppercase tracking-[0.22em] text-white/54">
+                    Apparatus Share
+                  </p>
+                  <p className="mt-3 text-2xl font-medium text-white">
+                    {totalDepartmentCalls > 0
+                      ? `${Math.round((totalApparatusCalls / totalDepartmentCalls) * 100)}% of department calls`
+                      : "No department calls counted yet"}
+                  </p>
+                </div>
+                <div className="rounded-[1.5rem] border border-white/10 bg-white/6 px-5 py-5">
+                  <p className="font-mono text-xs uppercase tracking-[0.22em] text-white/54">
+                    Source
+                  </p>
+                  <p className="mt-3 text-lg leading-8 text-white/78">
+                    {statsMessage ?? statsSourceLabel ?? "Stats feed not configured"}
+                  </p>
+                </div>
+              </div>
+            </div>
+          </div>
+        ),
+      },
     ];
   }, [
+    emsCalls,
+    fireRescueCalls,
     scheduleDate,
     scheduleEntries,
     scheduleMessage,
+    statsMessage,
+    statsSourceLabel,
+    statsYear,
+    totalApparatusCalls,
+    totalDepartmentCalls,
     unit,
     flashingWeatherAlert,
     weatherFactors,
@@ -1277,7 +1475,7 @@ export function DispatchDashboard() {
                 <p className="font-mono text-sm uppercase tracking-[0.38em] text-white/70">
                   Active Dispatch / {unit.displayName}
                 </p>
-                <h1 className="mt-4 max-w-5xl text-5xl font-semibold leading-[0.92] tracking-[-0.06em] text-white sm:text-6xl 2xl:text-7xl">
+                <h1 className="mt-4 max-w-6xl text-6xl font-semibold leading-[0.9] tracking-[-0.06em] text-white sm:text-7xl xl:text-[6.2rem] 2xl:text-[7.6rem]">
                   {primaryDispatch.nature ?? "Dispatch Alert"}
                 </h1>
               </div>
