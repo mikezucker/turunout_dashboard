@@ -1268,8 +1268,8 @@ export function DispatchDashboard() {
 
   if (primaryDispatch) {
     return (
-      <main className="mx-auto flex h-screen max-h-screen w-full max-w-[1800px] overflow-hidden px-4 py-4 sm:px-5 sm:py-5 lg:px-6 lg:py-6">
-        <section className="grid h-full w-full gap-5 rounded-[2.2rem] border border-white/14 bg-[linear-gradient(135deg,rgba(220,93,52,0.98),rgba(120,23,23,1))] p-7 text-white shadow-[0_40px_120px_rgba(0,0,0,0.35)] xl:grid-cols-[minmax(0,1.7fr)_380px]">
+      <main className="flex h-screen w-screen overflow-hidden">
+        <section className="grid h-full w-full gap-5 bg-[linear-gradient(135deg,rgba(220,93,52,0.98),rgba(120,23,23,1))] p-7 text-white xl:grid-cols-[minmax(0,1.7fr)_380px]">
           <div className="min-w-0">
             <div className="grid gap-6 xl:grid-cols-[auto_minmax(0,1fr)_auto] xl:items-start">
               <DepartmentLogo subtitle="Turnout Board" dark />
@@ -1427,8 +1427,8 @@ export function DispatchDashboard() {
   }
 
   return (
-    <main className="relative mx-auto h-screen max-h-screen w-full max-w-[1800px] overflow-hidden px-4 py-4 sm:px-5 sm:py-5 lg:px-6 lg:py-6">
-      <section className="relative h-full overflow-hidden rounded-[2.4rem] border border-white/10 bg-black text-white shadow-[0_40px_120px_rgba(0,0,0,0.24)]">
+    <main className="relative h-screen w-screen overflow-hidden">
+      <section className="relative h-full w-full overflow-hidden bg-black text-white">
         <div
           key={currentIdleScreen.id}
           className="absolute inset-0 overflow-hidden"
