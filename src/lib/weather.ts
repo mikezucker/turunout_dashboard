@@ -16,34 +16,14 @@ type Dictionary = Record<string, unknown>;
 
 const NOAA_SOURCE_LABEL = "NOAA / National Weather Service";
 const WEATHER_DISPLAY_LOCATION = "Morristown, NJ";
-const MORRISTOWN_LAT = 40.7968;
-const MORRISTOWN_LON = -74.4815;
-const WINDY_ZOOM_LEVEL = "9";
+const MORRISTOWN_RADAR_SITE_ID = "KDIX";
 
-function windyEmbedUrl() {
-  const params = new URLSearchParams({
-    overlay: "radar",
-    level: "surface",
-    lat: MORRISTOWN_LAT.toFixed(4),
-    lon: MORRISTOWN_LON.toFixed(4),
-    zoom: WINDY_ZOOM_LEVEL,
-    product: "radar",
-    menu: "",
-    message: "",
-    marker: "",
-    calendar: "",
-    pressure: "",
-    type: "map",
-    location: "coordinates",
-    detail: "",
-    detailLat: MORRISTOWN_LAT.toFixed(4),
-    detailLon: MORRISTOWN_LON.toFixed(4),
-    metricWind: "mph",
-    metricTemp: "f",
-    radarRange: "-1",
-  });
-
-  return `https://embed.windy.com/embed2.html?${params.toString()}`;
+function nwsRadarUrls() {
+  return {
+    radarImageUrl: `https://radar.weather.gov/ridge/standard/${MORRISTOWN_RADAR_SITE_ID}_loop.gif`,
+    radarFrameImageUrls: [],
+    radarPageUrl: `https://radar.weather.gov/station/${MORRISTOWN_RADAR_SITE_ID}/standard`,
+  };
 }
 
 function asDictionary(value: unknown): Dictionary | null {
@@ -180,14 +160,6 @@ async function fetchJson(url: string) {
   return payload;
 }
 
-function windyRadarUrls() {
-  return {
-    radarImageUrl: null,
-    radarFrameImageUrls: [],
-    radarPageUrl: windyEmbedUrl(),
-  };
-}
-
 function fallbackWeather(unit: UnitProfile, reason?: string): LiveWeatherData {
   const details = [...unit.weatherDetails];
 
@@ -201,9 +173,7 @@ function fallbackWeather(unit: UnitProfile, reason?: string): LiveWeatherData {
     details: details.length > 0 ? details : ["Weather feed not configured."],
     updatedAt: null,
     sourceLabel: NOAA_SOURCE_LABEL,
-    radarImageUrl: null,
-    radarFrameImageUrls: [],
-    radarPageUrl: null,
+    ...nwsRadarUrls(),
     isLive: false,
   };
 }
@@ -410,7 +380,7 @@ export async function fetchLiveWeather(unit: UnitProfile): Promise<LiveWeatherDa
         pickString(forecastProperties, "updated") ??
         null,
       sourceLabel: NOAA_SOURCE_LABEL,
-      ...windyRadarUrls(),
+      ...nwsRadarUrls(),
       isLive: true,
     };
   } catch (error) {

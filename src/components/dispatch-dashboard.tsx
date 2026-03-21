@@ -1513,7 +1513,7 @@ export function DispatchDashboard() {
               </div>
             </div>
             <div className="mt-6 h-px w-full max-w-6xl bg-white/18" />
-            <p className="mt-6 max-w-6xl text-5xl font-medium leading-[0.95] tracking-[-0.05em] text-white sm:text-6xl 2xl:text-7xl">
+            <p className="mt-6 max-w-6xl line-clamp-2 text-6xl font-semibold leading-[0.9] tracking-[-0.06em] text-white sm:text-7xl xl:text-[6.2rem] 2xl:text-[7.6rem]">
               {primaryDispatch.address ?? "Address not provided"}
             </p>
 
