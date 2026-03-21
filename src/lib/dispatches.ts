@@ -254,6 +254,28 @@ export function isClosedDispatchStatus(status: string | null) {
   return CLOSED_STATUSES.includes(status.trim().toLowerCase());
 }
 
+function parseDispatchTimestamp(value: string | null) {
+  if (!value) {
+    return Number.NEGATIVE_INFINITY;
+  }
+
+  const timestamp = Date.parse(value);
+  return Number.isFinite(timestamp) ? timestamp : Number.NEGATIVE_INFINITY;
+}
+
+export function sortDispatchesNewestFirst(dispatches: DispatchRecord[]) {
+  return [...dispatches].sort((left, right) => {
+    const timestampDelta =
+      parseDispatchTimestamp(right.dispatchedAt) - parseDispatchTimestamp(left.dispatchedAt);
+
+    if (timestampDelta !== 0) {
+      return timestampDelta;
+    }
+
+    return right.id.localeCompare(left.id);
+  });
+}
+
 function normalizeUnitToken(value: string) {
   return value.trim().toLowerCase().replace(/[^a-z0-9]/g, "");
 }
@@ -371,9 +393,7 @@ export async function fetchFirstDueDispatches(): Promise<DispatchFetchResult> {
     const body = await response.text();
     const payload = parseUpstreamPayload(body, contentType);
 
-    const dispatches = normalizeDispatchPayload(payload).filter(
-      (dispatch) => !isClosedDispatchStatus(dispatch.status),
-    );
+    const dispatches = sortDispatchesNewestFirst(normalizeDispatchPayload(payload));
 
     return {
       configured: true,

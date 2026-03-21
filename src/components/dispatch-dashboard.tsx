@@ -1,8 +1,8 @@
 "use client";
 
+import Image from "next/image";
 import { useEffect, useMemo, useRef, useState } from "react";
 import {
-  isClosedDispatchStatus,
   type DispatchRecord,
 } from "@/lib/dispatches";
 import type { SerializedUnitProfile } from "@/lib/unit-session";
@@ -279,6 +279,132 @@ function activeWeatherAlert(details: string[]) {
   return alertDetail ? alertDetail.replace(/^Active alerts:\s*/i, "") : null;
 }
 
+function companyBrand(unit: SerializedUnitProfile) {
+  if (unit.id === "engine2") {
+    return {
+      name: "Rt 24 Express",
+      monogram: "E2",
+      imageSrc: "/rt24express.PNG",
+      className: "border-sky-300/28 bg-sky-300/12 text-sky-50",
+    };
+  }
+
+  if (unit.station === "Station 1") {
+    return {
+      name: "Mt. Kemble",
+      monogram: "MK",
+      imageSrc: null,
+      className: "border-amber-300/28 bg-amber-200/12 text-amber-50",
+    };
+  }
+
+  if (unit.station === "Station 2") {
+    return {
+      name: "Collinsville",
+      monogram: "CV",
+      imageSrc: null,
+      className: "border-sky-300/28 bg-sky-300/12 text-sky-50",
+    };
+  }
+
+  if (unit.station === "Station 3") {
+    return {
+      name: "Hillside",
+      monogram: "HS",
+      imageSrc: null,
+      className: "border-emerald-300/28 bg-emerald-300/12 text-emerald-50",
+    };
+  }
+
+  if (unit.station === "Station 4") {
+    return {
+      name: "Fairchild",
+      monogram: "FC",
+      imageSrc: null,
+      className: "border-rose-300/28 bg-rose-300/12 text-rose-50",
+    };
+  }
+
+  if (unit.station === "Station 5") {
+    return {
+      name: "Woodland",
+      monogram: "WD",
+      imageSrc: null,
+      className: "border-violet-300/28 bg-violet-300/12 text-violet-50",
+    };
+  }
+
+  return {
+    name: unit.station,
+    monogram: "MT",
+    imageSrc: null,
+    className: "border-white/18 bg-white/10 text-white",
+  };
+}
+
+function UnitBrandBlock({ unit }: { unit: SerializedUnitProfile }) {
+  const company = companyBrand(unit);
+
+  return (
+    <div className="flex items-center justify-center">
+      {company.imageSrc ? (
+        <div className="flex h-40 w-40 items-center justify-center overflow-hidden">
+          <Image
+            src={company.imageSrc}
+            alt={`${company.name} logo`}
+            width={160}
+            height={160}
+            unoptimized
+            className="h-full w-full object-contain drop-shadow-[0_10px_24px_rgba(0,0,0,0.24)]"
+          />
+        </div>
+      ) : (
+        <div
+          className={`flex h-18 w-18 items-center justify-center rounded-full border font-mono text-base font-medium tracking-[0.18em] ${company.className}`}
+          aria-label={`${company.name} company badge`}
+        >
+          {company.monogram}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function DepartmentLogo({
+  subtitle,
+  dark = false,
+}: {
+  subtitle?: string;
+  dark?: boolean;
+}) {
+  return (
+    <div className="flex items-center gap-4">
+      <Image
+        src="/branding/mtfd-logo.svg"
+        alt="Morris Township Fire Department logo"
+        width={160}
+        height={160}
+        unoptimized
+        className="h-40 w-40 object-contain drop-shadow-[0_12px_28px_rgba(0,0,0,0.28)]"
+      />
+      <div>
+        <p
+          className={`font-mono text-xs uppercase tracking-[0.28em] ${
+            dark ? "text-white/52" : "text-[var(--signal)]"
+          }`}
+        >
+          Morris Township Fire
+        </p>
+        {subtitle ? (
+          <p className={`mt-1 text-sm ${dark ? "text-white/72" : "text-black/60"}`}>
+            {subtitle}
+          </p>
+        ) : null}
+      </div>
+    </div>
+  );
+}
+
 export function DispatchDashboard() {
   const [dispatches, setDispatches] = useState<DispatchRecord[]>([]);
   const [fetchedAt, setFetchedAt] = useState<string | null>(null);
@@ -394,7 +520,7 @@ export function DispatchDashboard() {
         let latestNewDispatch: DispatchRecord | null = null;
 
         for (const dispatch of data.dispatches) {
-          if (!nextSeenIds.has(dispatch.id)) {
+          if (!nextSeenIds.has(dispatch.id) && !latestNewDispatch) {
             latestNewDispatch = dispatch;
           }
           nextSeenIds.add(dispatch.id);
@@ -409,10 +535,7 @@ export function DispatchDashboard() {
             data.dispatches.find((dispatch) => dispatch.id === featuredDispatch.id) ??
             null;
 
-          if (
-            !updatedFeaturedDispatch ||
-            isClosedDispatchStatus(updatedFeaturedDispatch.status)
-          ) {
+          if (!updatedFeaturedDispatch) {
             setFeaturedDispatch(null);
           } else {
             setFeaturedDispatch(updatedFeaturedDispatch);
@@ -741,8 +864,8 @@ export function DispatchDashboard() {
           </div>
         ),
         content: (
-          <div className="grid h-full gap-8 xl:grid-cols-[minmax(360px,0.88fr)_minmax(520px,1.12fr)]">
-            <div className="rounded-[2rem] border border-white/12 bg-white/6 px-8 py-8 backdrop-blur-sm">
+          <div className="grid h-full min-h-0 content-start gap-6 xl:grid-cols-[minmax(340px,0.84fr)_minmax(500px,1.16fr)]">
+            <div className="min-h-0 rounded-[2rem] border border-white/12 bg-white/6 px-7 py-7 backdrop-blur-sm">
               {flashingWeatherAlert ? (
                 <div className="animate-pulse rounded-[1.5rem] border border-red-300/50 bg-red-500/24 px-6 py-4 shadow-[0_0_40px_rgba(248,113,113,0.18)]">
                   <p className="font-mono text-sm uppercase tracking-[0.28em] text-red-50">
@@ -754,16 +877,16 @@ export function DispatchDashboard() {
                 </div>
               ) : null}
               <div
-                className={`flex flex-col gap-6 ${
+                className={`flex flex-col gap-5 ${
                   flashingWeatherAlert ? "mt-5" : ""
                 }`}
               >
-                <div className="flex flex-col gap-4 rounded-[1.6rem] border border-white/12 bg-black/16 px-6 py-6 md:flex-row md:items-start md:justify-between">
+                <div className="flex flex-col gap-4 rounded-[1.6rem] border border-white/12 bg-black/16 px-6 py-5 md:flex-row md:items-start md:justify-between">
                   <div>
                     <p className="font-mono text-sm uppercase tracking-[0.28em] text-white/58">
                       Current Weather
                     </p>
-                    <p className="mt-4 text-4xl font-semibold leading-tight text-white">
+                    <p className="mt-4 text-3xl font-semibold leading-tight text-white 2xl:text-4xl">
                       {unit.weatherSummary}
                     </p>
                     <p className="mt-3 text-lg text-white/68">
@@ -774,7 +897,7 @@ export function DispatchDashboard() {
                     <p className="font-mono text-sm uppercase tracking-[0.28em] text-white/56">
                       Last Updated
                     </p>
-                    <p className="mt-4 text-2xl font-medium text-white">
+                    <p className="mt-4 text-xl font-medium text-white 2xl:text-2xl">
                       {unit.weatherUpdatedAt
                         ? formatTime(unit.weatherUpdatedAt)
                         : "Awaiting live weather"}
@@ -790,7 +913,7 @@ export function DispatchDashboard() {
                   </div>
                 ) : null}
               </div>
-              <div className="mt-6 grid gap-3 md:grid-cols-2">
+              <div className="mt-5 grid gap-3 md:grid-cols-2">
                 {weatherFactors.map((factor) => (
                   <div
                     key={factor.label}
@@ -809,7 +932,7 @@ export function DispatchDashboard() {
                   </div>
                 ))}
               </div>
-              <ul className="mt-6 grid gap-4 text-2xl leading-tight text-white/88">
+              <ul className="mt-5 grid gap-3 text-xl leading-tight text-white/88 2xl:text-2xl">
                 {(unit.weatherDetails.length > 0
                   ? unit.weatherDetails
                   : ["No weather details configured"]).slice(0, 4).map((detail) => (
@@ -817,7 +940,7 @@ export function DispatchDashboard() {
                 ))}
               </ul>
             </div>
-            <div className="rounded-[2rem] border border-white/12 bg-black/14 px-8 py-8">
+            <div className="min-h-0 rounded-[2rem] border border-white/12 bg-black/14 px-7 py-7">
               <div className="flex items-center justify-between gap-4">
                 <p className="font-mono text-sm uppercase tracking-[0.28em] text-white/56">
                   Radar
@@ -829,7 +952,7 @@ export function DispatchDashboard() {
                   <iframe
                     src={unit.weatherRadarPageUrl}
                     title={`${unit.weatherLocation} radar map`}
-                    className="h-[40rem] w-full border-0"
+                    className="h-[clamp(22rem,40vh,32rem)] w-full border-0"
                     loading="lazy"
                     referrerPolicy="strict-origin"
                   />
@@ -844,12 +967,12 @@ export function DispatchDashboard() {
                     <img
                       src={activeWeatherRadarImageUrl}
                       alt={`${unit.weatherLocation} radar loop`}
-                      className="h-[40rem] w-full object-cover"
+                      className="h-[clamp(22rem,40vh,32rem)] w-full object-cover"
                       style={{ objectPosition: "50% 50%" }}
                     />
                   </a>
                 ) : (
-                  <div className="flex h-[40rem] items-center justify-center px-8 text-center text-xl text-white/68">
+                  <div className="flex h-[clamp(22rem,40vh,32rem)] items-center justify-center px-8 text-center text-xl text-white/68">
                     Radar feed unavailable for this location.
                   </div>
                 )}
@@ -1059,12 +1182,15 @@ export function DispatchDashboard() {
 
   if (!sessionReady) {
     return (
-      <main className="mx-auto flex min-h-screen w-full max-w-7xl items-center justify-center px-4 py-6 sm:px-6 lg:px-8">
+      <main className="relative mx-auto flex min-h-screen w-full max-w-7xl items-center justify-center px-4 py-6 sm:px-6 lg:px-8">
+        <div className="absolute left-4 top-4 sm:left-6 sm:top-6 lg:left-8 lg:top-8">
+          <DepartmentLogo subtitle="Turnout Board" />
+        </div>
         <section className="w-full max-w-xl rounded-[2rem] border border-[var(--line)] bg-[var(--panel)] p-8 shadow-[0_24px_80px_rgba(65,43,24,0.14)]">
           <p className="font-mono text-sm uppercase tracking-[0.3em] text-[var(--signal)]">
             Turnout / Loading
           </p>
-          <h1 className="mt-4 text-4xl font-semibold tracking-[-0.04em]">
+          <h1 className="mt-4 overflow-hidden text-ellipsis whitespace-nowrap text-4xl font-semibold tracking-[-0.04em]">
             Checking unit session
           </h1>
         </section>
@@ -1074,13 +1200,16 @@ export function DispatchDashboard() {
 
   if (!unit) {
     return (
-      <main className="mx-auto flex min-h-screen w-full max-w-7xl items-center justify-center px-4 py-6 sm:px-6 lg:px-8">
+      <main className="relative mx-auto flex min-h-screen w-full max-w-7xl items-center justify-center px-4 py-6 sm:px-6 lg:px-8">
+        <div className="absolute left-4 top-4 sm:left-6 sm:top-6 lg:left-8 lg:top-8">
+          <DepartmentLogo subtitle="Turnout Board" />
+        </div>
         <section className="w-full max-w-2xl overflow-hidden rounded-[2rem] border border-[var(--line)] bg-[var(--panel)] shadow-[0_24px_80px_rgba(65,43,24,0.14)]">
           <div className="border-b border-[var(--line)] px-8 py-8">
             <p className="font-mono text-sm uppercase tracking-[0.3em] text-[var(--signal)]">
               Turnout / Unit Login
             </p>
-            <h1 className="mt-4 text-4xl font-semibold tracking-[-0.04em]">
+            <h1 className="mt-3 overflow-hidden text-ellipsis whitespace-nowrap text-4xl font-semibold tracking-[-0.04em]">
               Sign in this display to a unit
             </h1>
             <p className="mt-3 max-w-xl text-base text-black/65">
@@ -1142,9 +1271,7 @@ export function DispatchDashboard() {
         <section className="grid h-full w-full gap-5 rounded-[2.2rem] border border-white/14 bg-[linear-gradient(135deg,rgba(220,93,52,0.98),rgba(120,23,23,1))] p-7 text-white shadow-[0_40px_120px_rgba(0,0,0,0.35)] xl:grid-cols-[minmax(0,1.7fr)_380px]">
           <div className="min-w-0">
             <div className="flex items-start justify-between gap-4">
-              <p className="font-mono text-sm uppercase tracking-[0.38em] text-white/70">
-                Active Dispatch / {unit.displayName}
-              </p>
+              <DepartmentLogo subtitle="Turnout Board" dark />
               <button
                 type="button"
                 onClick={handleLogout}
@@ -1154,7 +1281,10 @@ export function DispatchDashboard() {
                 {loggingOut ? "Logging Out" : "Log Out"}
               </button>
             </div>
-            <h1 className="mt-5 text-6xl font-semibold tracking-[-0.06em] sm:text-7xl 2xl:text-8xl">
+            <p className="mt-6 font-mono text-sm uppercase tracking-[0.38em] text-white/70">
+              Active Dispatch / {unit.displayName}
+            </p>
+            <h1 className="mt-5 overflow-hidden text-ellipsis whitespace-nowrap text-6xl font-semibold tracking-[-0.06em] sm:text-7xl 2xl:text-8xl">
               {primaryDispatch.nature ?? "Dispatch Alert"}
             </h1>
             <div className="mt-8 h-px w-full max-w-6xl bg-white/18" />
@@ -1230,6 +1360,9 @@ export function DispatchDashboard() {
               <p className="font-mono text-sm uppercase tracking-[0.3em] text-white/62">
                 Unit
               </p>
+              <div className="mt-4 flex justify-center">
+                <UnitBrandBlock unit={unit} />
+              </div>
               <p className="mt-3 text-3xl font-medium">
                 {unit.displayName}
               </p>
@@ -1306,9 +1439,7 @@ export function DispatchDashboard() {
           <div className="relative grid h-full gap-10 px-10 py-10 sm:px-12 sm:py-12 xl:grid-cols-[minmax(0,1fr)_220px]">
             <div className="flex min-h-0 min-w-0 flex-col">
               <div className="flex items-start justify-between gap-4">
-                <p className="font-mono text-sm uppercase tracking-[0.34em] text-white/58">
-                  {currentIdleScreen.eyebrow}
-                </p>
+                <DepartmentLogo subtitle="Turnout Board" dark />
                 <button
                   type="button"
                   onClick={handleLogout}
@@ -1318,7 +1449,10 @@ export function DispatchDashboard() {
                   {loggingOut ? "Logging Out" : "Log Out"}
                 </button>
               </div>
-              <h1 className="mt-5 max-w-6xl text-6xl font-semibold tracking-[-0.07em] sm:text-7xl 2xl:text-[7rem]">
+              <p className="mt-6 font-mono text-sm uppercase tracking-[0.34em] text-white/58">
+                {currentIdleScreen.eyebrow}
+              </p>
+              <h1 className="mt-5 max-w-6xl overflow-hidden text-ellipsis whitespace-nowrap text-6xl font-semibold tracking-[-0.07em] sm:text-7xl 2xl:text-[7rem]">
                 {currentIdleScreen.title}
               </h1>
               <p className="mt-5 max-w-4xl text-2xl leading-tight text-white/80 2xl:text-3xl">
@@ -1337,6 +1471,9 @@ export function DispatchDashboard() {
 
             <div className="hidden xl:flex xl:flex-col xl:items-end xl:justify-between">
               <div className="text-right">
+                <div className="mb-5 flex justify-end">
+                  <UnitBrandBlock unit={unit} />
+                </div>
                 <p className="font-mono text-xs uppercase tracking-[0.28em] text-white/44">
                   Unit
                 </p>
