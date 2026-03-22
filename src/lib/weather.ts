@@ -139,8 +139,8 @@ function weatherHeaders() {
 }
 
 function weatherTimeoutMs() {
-  const timeout = Number(process.env.TURNOUT_WEATHER_TIMEOUT_MS ?? "8000");
-  return Number.isFinite(timeout) ? timeout : 8000;
+  const timeout = Number(process.env.TURNOUT_WEATHER_TIMEOUT_MS ?? "12000");
+  return Number.isFinite(timeout) ? timeout : 12000;
 }
 
 async function fetchJson(url: string) {
@@ -158,6 +158,30 @@ async function fetchJson(url: string) {
   }
 
   return payload;
+}
+
+async function fetchJsonOrNull(url: string) {
+  try {
+    return await fetchJson(url);
+  } catch {
+    return null;
+  }
+}
+
+function describeWeatherFailure(error: unknown) {
+  if (error instanceof Error && error.name === "TimeoutError") {
+    return `NOAA weather request timed out after ${weatherTimeoutMs()} ms.`;
+  }
+
+  if (error instanceof Error && error.name === "AbortError") {
+    return `NOAA weather request timed out after ${weatherTimeoutMs()} ms.`;
+  }
+
+  if (error instanceof TypeError) {
+    return "Could not reach NOAA weather services.";
+  }
+
+  return error instanceof Error ? error.message : "NOAA weather request failed.";
 }
 
 function fallbackWeather(unit: UnitProfile, reason?: string): LiveWeatherData {
@@ -243,9 +267,9 @@ export async function fetchLiveWeather(unit: UnitProfile): Promise<LiveWeatherDa
     }
 
     const [forecastHourlyPayload, stationsPayload, alertsPayload] = await Promise.all([
-      fetchJson(forecastHourlyUrl),
-      fetchJson(stationsUrl),
-      fetchJson(
+      fetchJsonOrNull(forecastHourlyUrl),
+      fetchJsonOrNull(stationsUrl),
+      fetchJsonOrNull(
         `https://api.weather.gov/alerts/active?point=${unit.weatherLatitude.toFixed(4)},${unit.weatherLongitude.toFixed(4)}`,
       ),
     ]);
@@ -271,7 +295,7 @@ export async function fetchLiveWeather(unit: UnitProfile): Promise<LiveWeatherDa
       null;
 
     const observationPayload = stationId
-      ? await fetchJson(
+      ? await fetchJsonOrNull(
           `https://api.weather.gov/stations/${stationId}/observations/latest?require_qc=true`,
         )
       : null;
@@ -350,7 +374,17 @@ export async function fetchLiveWeather(unit: UnitProfile): Promise<LiveWeatherDa
             : observationText
           : forecastShort ?? unit.weatherSummary;
 
+    const feedWarnings = [
+      !forecastHourlyPayload ? "Hourly NOAA forecast temporarily unavailable." : null,
+      !stationsPayload ? "NOAA station list temporarily unavailable." : null,
+      stationId && !observationPayload
+        ? "Latest NOAA observation temporarily unavailable."
+        : null,
+      !alertsPayload ? "NOAA alerts temporarily unavailable." : null,
+    ].filter((detail): detail is string => detail !== null);
+
     const details = prioritizeDetails([
+      ...feedWarnings,
       activeAlerts.length > 0 ? `Active alerts: ${activeAlerts.join(" | ")}` : null,
       windMph
         ? `Wind ${[windDirection, windMph].filter(Boolean).join(" ")}`
@@ -386,7 +420,7 @@ export async function fetchLiveWeather(unit: UnitProfile): Promise<LiveWeatherDa
   } catch (error) {
     return fallbackWeather(
       unit,
-      error instanceof Error ? error.message : "NOAA weather request failed.",
+      describeWeatherFailure(error),
     );
   }
 }
