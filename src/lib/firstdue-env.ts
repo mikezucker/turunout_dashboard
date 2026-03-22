@@ -56,6 +56,15 @@ export function getFirstDueAuthHeaders() {
 }
 
 export function getFirstDueTimeoutMs(fallbackMs: number) {
-  const parsedTimeout = Number(normalizeEnvValue(process.env.FIRSTDUE_TIMEOUT_MS));
-  return Number.isFinite(parsedTimeout) ? parsedTimeout : fallbackMs;
+  const normalizedTimeout = normalizeEnvValue(process.env.FIRSTDUE_TIMEOUT_MS);
+
+  if (!normalizedTimeout) {
+    return fallbackMs;
+  }
+
+  const parsedTimeout = Number(normalizedTimeout);
+
+  return Number.isFinite(parsedTimeout) && parsedTimeout > 0
+    ? parsedTimeout
+    : fallbackMs;
 }
