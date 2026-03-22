@@ -1,8 +1,8 @@
 import {
   filterDispatchesForUnit,
   normalizeDispatchPayload,
-  type DispatchRecord,
 } from "@/lib/dispatches";
+import type { DispatchRecord } from "@/lib/dispatch-shared";
 import {
   getFirstDueApiUrl,
   getFirstDueAuthHeaders,

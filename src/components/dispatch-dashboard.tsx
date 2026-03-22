@@ -5,8 +5,8 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import {
   isResolvedDispatch,
   isStaleOpenDispatch,
-  type DispatchRecord,
-} from "@/lib/dispatches";
+} from "@/lib/dispatch-shared";
+import type { DispatchRecord } from "@/lib/dispatch-shared";
 import type { SerializedUnitProfile } from "@/lib/unit-session";
 
 type ApiResponse = {
