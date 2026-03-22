@@ -1,6 +1,6 @@
 # Turnout Dispatch Board
 
-This project is a Next.js dashboard that polls FirstDue from the server, stores durable dispatch history in Postgres when configured, and pushes live updates to screens through server-sent events.
+This project is a Next.js dashboard that polls FirstDue from the server, stores durable recent dispatch history in Postgres when configured, and pushes live updates to screens through server-sent events.
 
 ## How it works
 
@@ -34,6 +34,7 @@ Open [http://localhost:3000](http://localhost:3000) with your browser to see the
 - `FIRSTDUE_POLL_INTERVAL_MS`: Server poll interval in milliseconds.
 - `FIRSTDUE_POLL_LOCK_TTL_MS`: Redis lease time for the active poller instance.
 - `DATABASE_URL`: Postgres connection string for durable snapshots, incidents, and event history.
+- `DISPATCH_RETENTION_DAYS`: Number of days to keep persisted dispatch data. Defaults to `30`.
 - `REDIS_URL`: Redis connection string for cross-instance snapshot sharing and pub/sub.
 - `REDIS_KEY_PREFIX`: Optional Redis key prefix. Defaults to `turnout`.
 - `NEXT_PUBLIC_POLL_INTERVAL_MS`: Browser polling interval. Use `5000` to `10000` for a 5 to 10 second cadence.
@@ -49,6 +50,7 @@ Open [http://localhost:3000](http://localhost:3000) with your browser to see the
 - Do not call FirstDue directly from the browser unless you are certain their API supports CORS and you are comfortable exposing client credentials. This app keeps the upstream call on the server.
 - If your FirstDue payload uses different field names, update the key lists in [`src/lib/dispatches.ts`](/Users/michael_zucker/Sites/Turnout/src/lib/dispatches.ts).
 - Postgres is optional but recommended for production. Without `DATABASE_URL`, the app still works, but incident history is limited to the live in-memory/Redis snapshot path.
+- Persisted dispatch data is retained for 30 days by default. Yearly statistics continue to come directly from FirstDue so retention does not skew totals.
 - Live weather uses the official National Weather Service API and NWS radar assets. For accurate weather, set exact `weatherLatitude` and `weatherLongitude` values per unit in `UNIT_ACCOUNTS_JSON`. `weatherStationId` is optional and lets you pin the observation station.
 - If you want unit-specific idle content, edit the unit entries in [`UNIT_ACCOUNTS_JSON`](#environment-variables) or replace that env-driven config with your own data source.
 - If FirstDue offers webhooks for your account, that is usually a better production design than tight polling.

@@ -10,6 +10,60 @@ type StoredIncident = {
   status: string | null;
 };
 
+const RETENTION_CLEANUP_INTERVAL_MS = 60 * 60 * 1000;
+const globalForDispatchStore = globalThis as typeof globalThis & {
+  __turnoutDispatchRetentionCleanupAt?: number;
+};
+
+function getDispatchRetentionDays() {
+  const rawValue = process.env.DISPATCH_RETENTION_DAYS?.trim() ?? "30";
+  const parsedValue = Number(rawValue);
+
+  return Number.isFinite(parsedValue) && parsedValue > 0
+    ? parsedValue
+    : 30;
+}
+
+function shouldRunRetentionCleanup(now = Date.now()) {
+  const lastCleanupAt =
+    globalForDispatchStore.__turnoutDispatchRetentionCleanupAt ?? 0;
+
+  if (now - lastCleanupAt < RETENTION_CLEANUP_INTERVAL_MS) {
+    return false;
+  }
+
+  globalForDispatchStore.__turnoutDispatchRetentionCleanupAt = now;
+  return true;
+}
+
+async function cleanupExpiredDispatchData(client: PoolClient) {
+  const retentionDays = getDispatchRetentionDays();
+
+  await client.query(
+    `
+      DELETE FROM dispatch_events
+      WHERE fetched_at < NOW() - make_interval(days => $1)
+    `,
+    [retentionDays],
+  );
+
+  await client.query(
+    `
+      DELETE FROM dispatch_incidents
+      WHERE COALESCE(last_seen_at, first_seen_at) < NOW() - make_interval(days => $1)
+    `,
+    [retentionDays],
+  );
+
+  await client.query(
+    `
+      DELETE FROM dispatch_snapshots
+      WHERE fetched_at < NOW() - make_interval(days => $1)
+    `,
+    [retentionDays],
+  );
+}
+
 function dispatchContentHash(dispatch: DispatchRecord) {
   return crypto
     .createHash("sha256")
@@ -75,6 +129,8 @@ export async function persistDispatchSnapshot(snapshot: DispatchSnapshot) {
   if (!isDatabaseConfigured()) {
     return;
   }
+
+  const runRetentionCleanup = shouldRunRetentionCleanup();
 
   await withTransaction(async (client) => {
     await client.query(
@@ -205,6 +261,10 @@ export async function persistDispatchSnapshot(snapshot: DispatchSnapshot) {
           JSON.stringify(dispatch),
         ],
       );
+    }
+
+    if (runRetentionCleanup) {
+      await cleanupExpiredDispatchData(client);
     }
   });
 }
