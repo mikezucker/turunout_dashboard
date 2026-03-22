@@ -78,9 +78,6 @@ type IdleScreen = {
   content: React.ReactNode;
 };
 
-const POLL_INTERVAL_MS = Number(
-  process.env.NEXT_PUBLIC_POLL_INTERVAL_MS ?? "5000",
-);
 const IDLE_ROTATION_MS = Number(
   process.env.NEXT_PUBLIC_IDLE_ROTATION_MS ?? "20000",
 );
@@ -484,6 +481,50 @@ export function DispatchDashboard() {
   const stickyMessageTimeoutRef = useRef<number | null>(null);
   const unitId = unit?.id ?? null;
   const unitApparatusApiId = unit?.apparatusApiId ?? null;
+
+  function applyDispatchUpdate(data: ApiResponse) {
+    setConfigured(data.configured);
+    setFetchedAt(data.fetchedAt);
+    setMessage(data.message);
+    setSourceLabel(data.sourceLabel);
+    setDispatches(data.dispatches);
+
+    const nextSeenIds = new Set(seenIdsRef.current);
+    let latestNewDispatch: DispatchRecord | null = null;
+
+    for (const dispatch of data.dispatches) {
+      if (isResolvedDispatch(dispatch) || isStaleOpenDispatch(dispatch)) {
+        continue;
+      }
+
+      if (!nextSeenIds.has(dispatch.id) && !latestNewDispatch) {
+        latestNewDispatch = dispatch;
+      }
+
+      nextSeenIds.add(dispatch.id);
+    }
+
+    seenIdsRef.current = nextSeenIds;
+
+    setFeaturedDispatch((current) => {
+      if (latestNewDispatch) {
+        return latestNewDispatch;
+      }
+
+      if (!current) {
+        return null;
+      }
+
+      return (
+        data.dispatches.find(
+          (dispatch) =>
+            dispatch.id === current.id &&
+            !isResolvedDispatch(dispatch) &&
+            !isStaleOpenDispatch(dispatch),
+        ) ?? null
+      );
+    });
+  }
   const activeDispatches = useMemo(
     () =>
       dispatches.filter(
@@ -583,8 +624,9 @@ export function DispatchDashboard() {
     }
 
     let active = true;
+    let eventSource: EventSource | null = null;
 
-    async function poll() {
+    async function loadInitialDispatches() {
       try {
         const response = await fetch("/api/dispatches", { cache: "no-store" });
         const data = (await response.json()) as ApiResponse;
@@ -593,65 +635,45 @@ export function DispatchDashboard() {
           return;
         }
 
-        setConfigured(data.configured);
-        setFetchedAt(data.fetchedAt);
-        setMessage(data.message);
-        setSourceLabel(data.sourceLabel);
-        setDispatches(data.dispatches);
-
-        const nextSeenIds = new Set(seenIdsRef.current);
-        let latestNewDispatch: DispatchRecord | null = null;
-
-        for (const dispatch of data.dispatches) {
-          if (isResolvedDispatch(dispatch) || isStaleOpenDispatch(dispatch)) {
-            continue;
-          }
-
-          if (!nextSeenIds.has(dispatch.id) && !latestNewDispatch) {
-            latestNewDispatch = dispatch;
-          }
-          nextSeenIds.add(dispatch.id);
-        }
-
-        seenIdsRef.current = nextSeenIds;
-
-        if (latestNewDispatch) {
-          setFeaturedDispatch(latestNewDispatch);
-        } else if (featuredDispatch) {
-          const updatedFeaturedDispatch =
-            data.dispatches.find(
-              (dispatch) =>
-                dispatch.id === featuredDispatch.id &&
-                !isResolvedDispatch(dispatch) &&
-                !isStaleOpenDispatch(dispatch),
-            ) ??
-            null;
-
-          if (!updatedFeaturedDispatch) {
-            setFeaturedDispatch(null);
-          } else {
-            setFeaturedDispatch(updatedFeaturedDispatch);
-          }
-        }
+        applyDispatchUpdate(data);
       } catch (error) {
         if (!active) {
           return;
         }
 
         setMessage(
-          error instanceof Error ? error.message : "Polling request failed.",
+          error instanceof Error ? error.message : "Dispatch request failed.",
         );
       }
     }
 
-    poll();
-    const intervalId = window.setInterval(poll, POLL_INTERVAL_MS);
+    function connectDispatchStream() {
+      eventSource = new EventSource("/api/dispatch-stream");
+      eventSource.addEventListener("dispatch", (event) => {
+        if (!active) {
+          return;
+        }
+
+        const data = JSON.parse((event as MessageEvent<string>).data) as ApiResponse;
+        applyDispatchUpdate(data);
+      });
+      eventSource.onerror = () => {
+        if (!active) {
+          return;
+        }
+
+        setMessage((current) => current ?? "Live dispatch stream reconnecting.");
+      };
+    }
+
+    void loadInitialDispatches();
+    connectDispatchStream();
 
     return () => {
       active = false;
-      window.clearInterval(intervalId);
+      eventSource?.close();
     };
-  }, [featuredDispatch, unitId]);
+  }, [unitId]);
 
   useEffect(() => {
     if (!unitId) {

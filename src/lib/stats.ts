@@ -7,6 +7,10 @@ import {
   getFirstDueApiUrl,
   getFirstDueAuthHeaders,
 } from "@/lib/firstdue-env";
+import {
+  getPersistedIncidentsSince,
+} from "@/lib/dispatch-store";
+import { isDatabaseConfigured } from "@/lib/db";
 
 type UnitMatcher = {
   id: string;
@@ -174,10 +178,44 @@ function classifyCalls(dispatches: DispatchRecord[]) {
 export async function fetchDispatchStats(
   unit: UnitMatcher | null,
 ): Promise<DispatchStatsResult> {
-  const headers = getFirstDueAuthHeaders();
-  const apiUrl = getFirstDueApiUrl();
   const year = new Date().getFullYear();
   const sinceIso = easternYearStartSinceIso();
+
+  if (isDatabaseConfigured()) {
+    try {
+      const incidents = await getPersistedIncidentsSince(sinceIso);
+      const unitDispatches = filterDispatchesForUnit(incidents, unit);
+      const classified = classifyCalls(incidents);
+
+      return {
+        ok: true,
+        message: null,
+        sourceLabel: "Stored incident history",
+        year,
+        totalDepartmentCalls: incidents.length,
+        totalApparatusCalls: unitDispatches.length,
+        emsCalls: classified.emsCalls,
+        fireRescueCalls: classified.fireRescueCalls,
+      };
+    } catch (error) {
+      return {
+        ok: false,
+        message:
+          error instanceof Error
+            ? error.message
+            : "Stored dispatch stats unavailable.",
+        sourceLabel: "Stored incident history",
+        year,
+        totalDepartmentCalls: 0,
+        totalApparatusCalls: 0,
+        emsCalls: 0,
+        fireRescueCalls: 0,
+      };
+    }
+  }
+
+  const headers = getFirstDueAuthHeaders();
+  const apiUrl = getFirstDueApiUrl();
 
   if (!headers || !apiUrl) {
     return {

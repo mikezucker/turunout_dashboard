@@ -1,11 +1,13 @@
 # Turnout Dispatch Board
 
-This project is a Next.js dashboard that polls a server-side route every 5 seconds and displays the latest dispatches returned by FirstDue.
+This project is a Next.js dashboard that polls FirstDue from the server, stores durable dispatch history in Postgres when configured, and pushes live updates to screens through server-sent events.
 
 ## How it works
 
-- The browser polls `/api/dispatches` on a fixed interval.
-- The server route calls your FirstDue endpoint with credentials stored in environment variables.
+- The browser loads `/api/dispatches` once and then subscribes to `/api/dispatch-stream`.
+- The server poller calls your FirstDue endpoint with credentials stored in environment variables.
+- When `DATABASE_URL` is configured, snapshots, incidents, and incident-change events are written to Postgres.
+- When `REDIS_URL` is configured, multiple app instances share the latest snapshot and fan out updates consistently.
 - The response is normalized into a common dispatch shape so the UI can render even if the upstream field names vary.
 - Each display signs into a specific unit so the idle screen can show that unit's information when there is no active dispatch.
 
@@ -29,6 +31,11 @@ Open [http://localhost:3000](http://localhost:3000) with your browser to see the
 - `FIRSTDUE_API_HEADER_NAME`: Header name for auth. Defaults to `Authorization`.
 - `FIRSTDUE_API_HEADER_VALUE`: Full header value, for example `Bearer abc123`.
 - `FIRSTDUE_TIMEOUT_MS`: Upstream request timeout in milliseconds.
+- `FIRSTDUE_POLL_INTERVAL_MS`: Server poll interval in milliseconds.
+- `FIRSTDUE_POLL_LOCK_TTL_MS`: Redis lease time for the active poller instance.
+- `DATABASE_URL`: Postgres connection string for durable snapshots, incidents, and event history.
+- `REDIS_URL`: Redis connection string for cross-instance snapshot sharing and pub/sub.
+- `REDIS_KEY_PREFIX`: Optional Redis key prefix. Defaults to `turnout`.
 - `NEXT_PUBLIC_POLL_INTERVAL_MS`: Browser polling interval. Use `5000` to `10000` for a 5 to 10 second cadence.
 - `NEXT_PUBLIC_WEATHER_POLL_INTERVAL_MS`: Weather refresh interval in milliseconds. Defaults to `300000` (5 minutes).
 - `TURNOUT_SESSION_SECRET`: Secret used to sign the unit session cookie.
@@ -41,6 +48,7 @@ Open [http://localhost:3000](http://localhost:3000) with your browser to see the
 
 - Do not call FirstDue directly from the browser unless you are certain their API supports CORS and you are comfortable exposing client credentials. This app keeps the upstream call on the server.
 - If your FirstDue payload uses different field names, update the key lists in [`src/lib/dispatches.ts`](/Users/michael_zucker/Sites/Turnout/src/lib/dispatches.ts).
+- Postgres is optional but recommended for production. Without `DATABASE_URL`, the app still works, but incident history is limited to the live in-memory/Redis snapshot path.
 - Live weather uses the official National Weather Service API and NWS radar assets. For accurate weather, set exact `weatherLatitude` and `weatherLongitude` values per unit in `UNIT_ACCOUNTS_JSON`. `weatherStationId` is optional and lets you pin the observation station.
 - If you want unit-specific idle content, edit the unit entries in [`UNIT_ACCOUNTS_JSON`](#environment-variables) or replace that env-driven config with your own data source.
 - If FirstDue offers webhooks for your account, that is usually a better production design than tight polling.

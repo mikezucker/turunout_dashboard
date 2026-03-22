@@ -25,7 +25,7 @@ type PollConfig = {
   apiTimeoutMs: number;
 };
 
-type DispatchFetchResult = {
+export type DispatchFetchResult = {
   configured: boolean;
   upstreamStatus: number | null;
   dispatches: DispatchRecord[];
