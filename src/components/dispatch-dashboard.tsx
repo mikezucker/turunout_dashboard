@@ -89,6 +89,7 @@ const WEATHER_POLL_INTERVAL_MS = Number(
 );
 const STATS_POLL_INTERVAL_MS = 15 * 60 * 1000;
 const DISPATCH_TIME_ZONE = "America/New_York";
+const STATUS_BANNER_PERSIST_MS = 15000;
 
 function formatTime(value: string | null) {
   if (!value) {
@@ -445,6 +446,7 @@ export function DispatchDashboard() {
   const [dispatches, setDispatches] = useState<DispatchRecord[]>([]);
   const [fetchedAt, setFetchedAt] = useState<string | null>(null);
   const [message, setMessage] = useState<string | null>(null);
+  const [stickyMessage, setStickyMessage] = useState<string | null>(null);
   const [sourceLabel, setSourceLabel] = useState<string | null>(null);
   const [configured, setConfigured] = useState(false);
   const [featuredDispatch, setFeaturedDispatch] = useState<DispatchRecord | null>(
@@ -479,6 +481,7 @@ export function DispatchDashboard() {
   const seenIdsRef = useRef<Set<string>>(new Set());
   const idleContentRef = useRef<HTMLDivElement | null>(null);
   const workOrdersListRef = useRef<HTMLDivElement | null>(null);
+  const stickyMessageTimeoutRef = useRef<number | null>(null);
   const unitId = unit?.id ?? null;
   const unitApparatusApiId = unit?.apparatusApiId ?? null;
   const activeDispatches = useMemo(
@@ -500,6 +503,31 @@ export function DispatchDashboard() {
       window.clearInterval(intervalId);
     };
   }, []);
+
+  useEffect(() => {
+    return () => {
+      if (stickyMessageTimeoutRef.current !== null) {
+        window.clearTimeout(stickyMessageTimeoutRef.current);
+      }
+    };
+  }, []);
+
+  useEffect(() => {
+    if (!message) {
+      return;
+    }
+
+    setStickyMessage(message);
+
+    if (stickyMessageTimeoutRef.current !== null) {
+      window.clearTimeout(stickyMessageTimeoutRef.current);
+    }
+
+    stickyMessageTimeoutRef.current = window.setTimeout(() => {
+      setStickyMessage((current) => (current === message ? null : current));
+      stickyMessageTimeoutRef.current = null;
+    }, STATUS_BANNER_PERSIST_MS);
+  }, [message]);
 
   useEffect(() => {
     setWeatherRadarFrameIndex(0);
@@ -1720,12 +1748,12 @@ export function DispatchDashboard() {
           </div>
         </div>
       </section>
-      {(message || !configured) ? (
+      {(stickyMessage || !configured) ? (
         <div className="absolute bottom-8 left-1/2 z-10 w-[min(920px,calc(100%-4rem))] -translate-x-1/2">
           <div className="flex flex-wrap justify-center gap-3">
-            {message ? (
+            {stickyMessage ? (
               <div className="rounded-full border border-[rgba(255,255,255,0.16)] bg-[rgba(0,0,0,0.28)] px-4 py-2 text-sm text-white/88 backdrop-blur">
-                {message}
+                {stickyMessage}
               </div>
             ) : null}
             {!configured ? (
