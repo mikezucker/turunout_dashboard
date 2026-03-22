@@ -41,6 +41,9 @@ function getPool() {
     globalForDb.__turnoutDbPool = new Pool({
       connectionString: getDatabaseUrl() as string,
       max: 5,
+      ssl: {
+        rejectUnauthorized: false,
+      },
     });
   }
 
