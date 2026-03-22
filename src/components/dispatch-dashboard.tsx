@@ -448,7 +448,7 @@ export function DispatchDashboard() {
   const [message, setMessage] = useState<string | null>(null);
   const [stickyMessage, setStickyMessage] = useState<string | null>(null);
   const [sourceLabel, setSourceLabel] = useState<string | null>(null);
-  const [configured, setConfigured] = useState(false);
+  const [configured, setConfigured] = useState(true);
   const [featuredDispatch, setFeaturedDispatch] = useState<DispatchRecord | null>(
     null,
   );
@@ -578,6 +578,7 @@ export function DispatchDashboard() {
 
   useEffect(() => {
     if (!unitId) {
+      setConfigured(true);
       return;
     }
 
@@ -1748,7 +1749,7 @@ export function DispatchDashboard() {
           </div>
         </div>
       </section>
-      {(stickyMessage || !configured) ? (
+      {(stickyMessage || (Boolean(unitId) && !configured)) ? (
         <div className="absolute bottom-8 left-1/2 z-10 w-[min(920px,calc(100%-4rem))] -translate-x-1/2">
           <div className="flex flex-wrap justify-center gap-3">
             {stickyMessage ? (
@@ -1756,7 +1757,7 @@ export function DispatchDashboard() {
                 {stickyMessage}
               </div>
             ) : null}
-            {!configured ? (
+            {unitId && !configured ? (
               <div className="rounded-full border border-[rgba(255,255,255,0.16)] bg-[rgba(0,0,0,0.28)] px-4 py-2 text-sm text-white/88 backdrop-blur">
                 Configure <code>FIRSTDUE_API_URL</code> and auth in your server environment variables.
               </div>
