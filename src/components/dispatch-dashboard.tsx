@@ -1758,7 +1758,7 @@ export function DispatchDashboard() {
             ) : null}
             {!configured ? (
               <div className="rounded-full border border-[rgba(255,255,255,0.16)] bg-[rgba(0,0,0,0.28)] px-4 py-2 text-sm text-white/88 backdrop-blur">
-                Configure <code>FIRSTDUE_API_URL</code> and auth in <code>.env.local</code>.
+                Configure <code>FIRSTDUE_API_URL</code> and auth in your server environment variables.
               </div>
             ) : null}
           </div>

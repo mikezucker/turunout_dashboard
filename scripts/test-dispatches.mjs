@@ -6,7 +6,9 @@ import ts from "typescript";
 
 async function loadDispatchModule() {
   const sourcePath = path.resolve("src/lib/dispatches.ts");
+  const envSourcePath = path.resolve("src/lib/firstdue-env.ts");
   const source = await readFile(sourcePath, "utf8");
+  const envSource = await readFile(envSourcePath, "utf8");
   const transpiled = ts.transpileModule(source, {
     compilerOptions: {
       module: ts.ModuleKind.ES2022,
@@ -14,11 +16,24 @@ async function loadDispatchModule() {
     },
     fileName: sourcePath,
   });
+  const transpiledEnv = ts.transpileModule(envSource, {
+    compilerOptions: {
+      module: ts.ModuleKind.ES2022,
+      target: ts.ScriptTarget.ES2022,
+    },
+    fileName: envSourcePath,
+  });
 
   const tempDir = await mkdtemp(path.join(os.tmpdir(), "turnout-dispatches-"));
   const tempModulePath = path.join(tempDir, "dispatches.mjs");
+  const tempEnvModulePath = path.join(tempDir, "firstdue-env.mjs");
+  const rewrittenDispatchModule = transpiled.outputText.replace(
+    /from\s+["']@\/lib\/firstdue-env["']/g,
+    'from "./firstdue-env.mjs"',
+  );
 
-  await writeFile(tempModulePath, transpiled.outputText, "utf8");
+  await writeFile(tempEnvModulePath, transpiledEnv.outputText, "utf8");
+  await writeFile(tempModulePath, rewrittenDispatchModule, "utf8");
 
   try {
     return await import(`file://${tempModulePath}`);

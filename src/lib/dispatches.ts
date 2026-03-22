@@ -1,3 +1,9 @@
+import {
+  getFirstDueApiUrl,
+  getFirstDueAuthConfig,
+  getFirstDueTimeoutMs,
+} from "@/lib/firstdue-env";
+
 export type DispatchRecord = {
   id: string;
   incidentNumber: string | null;
@@ -132,19 +138,29 @@ const SHORT_LIVED_CALL_TYPES = new Set([
 ]);
 
 function getConfig(): PollConfig {
-  const timeout = Number(process.env.FIRSTDUE_TIMEOUT_MS ?? "8000");
+  const auth = getFirstDueAuthConfig();
 
   return {
-    apiUrl: process.env.FIRSTDUE_API_URL ?? null,
+    apiUrl: getFirstDueApiUrl(),
     apiMethod: process.env.FIRSTDUE_API_METHOD ?? "GET",
-    apiHeaderName: process.env.FIRSTDUE_API_HEADER_NAME ?? "Authorization",
-    apiHeaderValue:
-      process.env.FIRSTDUE_API_HEADER_VALUE ??
-      (process.env.FIRSTDUE_API_TOKEN
-        ? `Bearer ${process.env.FIRSTDUE_API_TOKEN}`
-        : null),
-    apiTimeoutMs: Number.isFinite(timeout) ? timeout : 8000,
+    apiHeaderName: auth.headerName,
+    apiHeaderValue: auth.headerValue,
+    apiTimeoutMs: getFirstDueTimeoutMs(8000),
   };
+}
+
+function validateConfig(config: PollConfig) {
+  if (!config.apiUrl) {
+    return "Set FIRSTDUE_API_URL in your server environment variables to enable live polling.";
+  }
+
+  try {
+    new URL(config.apiUrl);
+  } catch {
+    return "FIRSTDUE_API_URL is set but not a valid URL. Remove wrapping quotes and verify the full https:// endpoint.";
+  }
+
+  return null;
 }
 
 function describeSource(apiUrl: string) {
@@ -679,17 +695,19 @@ function describeFetchFailure(error: unknown, config: PollConfig) {
 
 export async function fetchFirstDueDispatches(): Promise<DispatchFetchResult> {
   const config = getConfig();
+  const configIssue = validateConfig(config);
 
-  if (!config.apiUrl) {
+  if (configIssue) {
     return {
       configured: false,
       upstreamStatus: null as number | null,
       dispatches: [] as DispatchRecord[],
-      message:
-        "Set FIRSTDUE_API_URL and auth environment variables to enable live polling.",
+      message: configIssue,
       sourceLabel: null,
     };
   }
+
+  const apiUrl = config.apiUrl as string;
 
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), config.apiTimeoutMs);
@@ -703,7 +721,7 @@ export async function fetchFirstDueDispatches(): Promise<DispatchFetchResult> {
       headers.set(config.apiHeaderName, config.apiHeaderValue);
     }
 
-    const response = await fetch(config.apiUrl, {
+    const response = await fetch(apiUrl, {
       method: config.apiMethod,
       headers,
       cache: "no-store",
@@ -725,7 +743,7 @@ export async function fetchFirstDueDispatches(): Promise<DispatchFetchResult> {
           ? null
           : extractUpstreamErrorMessage(payload) ??
             `FirstDue returned HTTP ${response.status}.`,
-      sourceLabel: describeSource(config.apiUrl),
+      sourceLabel: describeSource(apiUrl),
       rawPreview:
         typeof payload === "string" ? payload.slice(0, 500) : payload,
     };
@@ -735,7 +753,7 @@ export async function fetchFirstDueDispatches(): Promise<DispatchFetchResult> {
       upstreamStatus: null,
       dispatches: [],
       message: describeFetchFailure(error, config),
-      sourceLabel: describeSource(config.apiUrl),
+      sourceLabel: describeSource(apiUrl),
     };
   } finally {
     clearTimeout(timeout);

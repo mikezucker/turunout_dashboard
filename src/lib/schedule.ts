@@ -1,3 +1,5 @@
+import { getFirstDueAuthHeaders } from "@/lib/firstdue-env";
+
 type ScheduleEntry = {
   id: string;
   title: string;
@@ -25,22 +27,6 @@ function pickString(record: Dictionary, key: string) {
   const value = record[key];
 
   return typeof value === "string" && value.trim() ? value.trim() : null;
-}
-
-function getAuthHeaders() {
-  const headerName = process.env.FIRSTDUE_API_HEADER_NAME ?? "Authorization";
-  const headerValue =
-    process.env.FIRSTDUE_API_HEADER_VALUE ??
-    (process.env.FIRSTDUE_API_TOKEN
-      ? `Bearer ${process.env.FIRSTDUE_API_TOKEN}`
-      : null);
-
-  return headerValue
-    ? {
-        Accept: "application/json",
-        [headerName]: headerValue,
-      }
-    : null;
 }
 
 function formatTimeRange(startValue: string | null, endValue: string | null) {
@@ -111,7 +97,7 @@ function normalizeScheduleEntry(item: unknown, index: number): ScheduleEntry | n
 }
 
 export async function fetchDailySchedule(): Promise<ScheduleResult> {
-  const headers = getAuthHeaders();
+  const headers = getFirstDueAuthHeaders();
 
   if (!headers) {
     return {

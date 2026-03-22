@@ -3,6 +3,10 @@ import {
   normalizeDispatchPayload,
   type DispatchRecord,
 } from "@/lib/dispatches";
+import {
+  getFirstDueApiUrl,
+  getFirstDueAuthHeaders,
+} from "@/lib/firstdue-env";
 
 type UnitMatcher = {
   id: string;
@@ -92,22 +96,6 @@ const FIRE_RESCUE_CALL_TYPES = new Set([
   "WIRES   TRANSFORMER   ELECTRICAL [55]",
 ]);
 
-function getAuthHeaders() {
-  const headerName = process.env.FIRSTDUE_API_HEADER_NAME ?? "Authorization";
-  const headerValue =
-    process.env.FIRSTDUE_API_HEADER_VALUE ??
-    (process.env.FIRSTDUE_API_TOKEN
-      ? `Bearer ${process.env.FIRSTDUE_API_TOKEN}`
-      : null);
-
-  return headerValue
-    ? {
-        Accept: "application/json",
-        [headerName]: headerValue,
-      }
-    : null;
-}
-
 function describeSource(apiUrl: string) {
   try {
     return `Live feed: ${new URL(apiUrl).hostname}`;
@@ -186,8 +174,8 @@ function classifyCalls(dispatches: DispatchRecord[]) {
 export async function fetchDispatchStats(
   unit: UnitMatcher | null,
 ): Promise<DispatchStatsResult> {
-  const headers = getAuthHeaders();
-  const apiUrl = process.env.FIRSTDUE_API_URL ?? null;
+  const headers = getFirstDueAuthHeaders();
+  const apiUrl = getFirstDueApiUrl();
   const year = new Date().getFullYear();
   const sinceIso = easternYearStartSinceIso();
 

@@ -1,3 +1,4 @@
+import { getFirstDueAuthHeaders } from "@/lib/firstdue-env";
 import { getEffectiveApparatusApiId, getUnitProfile } from "@/lib/unit-session";
 
 type WorkOrderRecord = {
@@ -129,22 +130,6 @@ function isExcludedWorkOrder(workOrder: WorkOrderRecord) {
   return false;
 }
 
-function getAuthHeaders() {
-  const headerName = process.env.FIRSTDUE_API_HEADER_NAME ?? "Authorization";
-  const headerValue =
-    process.env.FIRSTDUE_API_HEADER_VALUE ??
-    (process.env.FIRSTDUE_API_TOKEN
-      ? `Bearer ${process.env.FIRSTDUE_API_TOKEN}`
-      : null);
-
-  return headerValue
-    ? {
-        Accept: "application/json",
-        [headerName]: headerValue,
-      }
-    : null;
-}
-
 export async function fetchUnitWorkOrders(unitId: string) {
   const unit = getUnitProfile(unitId);
 
@@ -170,7 +155,7 @@ export async function fetchUnitWorkOrders(unitId: string) {
     };
   }
 
-  const headers = getAuthHeaders();
+  const headers = getFirstDueAuthHeaders();
 
   if (!headers) {
     return {
