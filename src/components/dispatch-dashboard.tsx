@@ -145,6 +145,21 @@ const STATS_POLL_INTERVAL_MS = 15 * 60 * 1000;
 const HEALTH_POLL_INTERVAL_MS = 60000;
 const DISPATCH_TIME_ZONE = "America/New_York";
 const STATUS_BANNER_PERSIST_MS = 15000;
+const HIGH_PRIORITY_NATURE_PATTERNS = [
+  /structure fire/i,
+  /commercial fire/i,
+  /residential fire/i,
+  /entrapment/i,
+  /cardiac/i,
+  /unconscious/i,
+  /stroke/i,
+  /chest pain/i,
+  /breathing/i,
+  /mva injury/i,
+  /mva entrainment/i,
+  /mva entrapp?ment/i,
+  /burns/i,
+];
 
 function formatTime(value: string | null) {
   if (!value) {
@@ -231,6 +246,11 @@ function formatDurationBetween(
   return `${String(minutes).padStart(2, "0")}:${String(seconds).padStart(2, "0")}`;
 }
 
+function timestampValue(value: string | null) {
+  const parsed = parseTimestamp(value);
+  return parsed ? parsed.getTime() : Number.NEGATIVE_INFINITY;
+}
+
 function turnoutState(dispatch: DispatchRecord) {
   if (dispatch.enrouteAt) {
     return "En Route";
@@ -282,17 +302,158 @@ function timelineEventLabel(eventType: string) {
   }
 }
 
-function summarizeDispatchMessage(message: string | null) {
+function timelineEventSummary(message: string | null, eventType: string) {
   if (!message) {
     return "No CAD notes captured.";
   }
 
-  return (
-    message
-      .split("\n")
-      .map((line) => line.trim())
-      .find(Boolean) ?? "No CAD notes captured."
-  );
+  const lines = message
+    .split("\n")
+    .map((line) => line.trim())
+    .filter(Boolean);
+
+  if (lines.length === 0) {
+    return "No CAD notes captured.";
+  }
+
+  if (eventType === "created") {
+    return lines[0] ?? "No CAD notes captured.";
+  }
+
+  return lines.at(-1) ?? lines[0] ?? "No CAD notes captured.";
+}
+
+function eventToneClasses(eventType: string) {
+  switch (eventType) {
+    case "created":
+      return {
+        border: "border-emerald-300/24",
+        badge: "bg-emerald-300/16 text-emerald-50",
+        dot: "bg-emerald-300",
+      };
+    case "status_changed":
+      return {
+        border: "border-amber-300/24",
+        badge: "bg-amber-300/16 text-amber-50",
+        dot: "bg-amber-300",
+      };
+    default:
+      return {
+        border: "border-white/12",
+        badge: "bg-white/10 text-white/78",
+        dot: "bg-sky-300",
+      };
+  }
+}
+
+function formatRelativeEventOffset(
+  dispatchAt: string | null,
+  eventAt: string,
+) {
+  const start = timestampValue(dispatchAt);
+  const eventTime = timestampValue(eventAt);
+
+  if (!Number.isFinite(start) || !Number.isFinite(eventTime) || eventTime < start) {
+    return "Offset unavailable";
+  }
+
+  const totalMinutes = Math.floor((eventTime - start) / 60000);
+
+  if (totalMinutes < 1) {
+    return "At dispatch";
+  }
+
+  const hours = Math.floor(totalMinutes / 60);
+  const minutes = totalMinutes % 60;
+
+  if (hours <= 0) {
+    return `+${totalMinutes} min`;
+  }
+
+  return `+${hours}h ${String(minutes).padStart(2, "0")}m`;
+}
+
+function dispatchPriorityScore(dispatch: DispatchRecord, now: number) {
+  let score = 0;
+  const status = dispatch.status?.trim().toLowerCase() ?? "";
+  const nature = dispatch.nature ?? "";
+  const dispatchTime = timestampValue(dispatch.dispatchedAt);
+  const activityTime = timestampValue(dispatch.lastActivityAt ?? dispatch.dispatchedAt);
+  const dispatchAgeMs = Number.isFinite(dispatchTime)
+    ? Math.max(0, now - dispatchTime)
+    : Number.POSITIVE_INFINITY;
+  const activityAgeMs = Number.isFinite(activityTime)
+    ? Math.max(0, now - activityTime)
+    : Number.POSITIVE_INFINITY;
+
+  if (status === "open") {
+    score += 260;
+  }
+
+  if (!dispatch.enrouteAt) {
+    score += 150;
+  } else {
+    score += 40;
+  }
+
+  if (dispatchAgeMs <= 10 * 60 * 1000) {
+    score += 160;
+  } else if (dispatchAgeMs <= 30 * 60 * 1000) {
+    score += 90;
+  }
+
+  if (activityAgeMs <= 10 * 60 * 1000) {
+    score += 120;
+  } else if (activityAgeMs <= 30 * 60 * 1000) {
+    score += 70;
+  }
+
+  if (HIGH_PRIORITY_NATURE_PATTERNS.some((pattern) => pattern.test(nature))) {
+    score += 140;
+  }
+
+  if (isStaleOpenDispatch(dispatch, now)) {
+    score -= 160;
+  }
+
+  return score;
+}
+
+function compareDispatchPriority(
+  left: DispatchRecord,
+  right: DispatchRecord,
+  now: number,
+) {
+  const scoreDelta =
+    dispatchPriorityScore(right, now) - dispatchPriorityScore(left, now);
+
+  if (scoreDelta !== 0) {
+    return scoreDelta;
+  }
+
+  const activityDelta =
+    timestampValue(right.lastActivityAt ?? right.dispatchedAt) -
+    timestampValue(left.lastActivityAt ?? left.dispatchedAt);
+
+  if (activityDelta !== 0) {
+    return activityDelta;
+  }
+
+  return timestampValue(right.dispatchedAt) - timestampValue(left.dispatchedAt);
+}
+
+function dispatchPriorityLabel(dispatch: DispatchRecord, now: number) {
+  const score = dispatchPriorityScore(dispatch, now);
+
+  if (score >= 520) {
+    return "Immediate";
+  }
+
+  if (score >= 360) {
+    return "Primary";
+  }
+
+  return "Monitor";
 }
 
 function weatherArtwork(summary: string) {
@@ -642,7 +803,10 @@ export function DispatchDashboard() {
     [dispatches],
   );
   const freshDispatches = useMemo(
-    () => activeDispatches.filter((dispatch) => !isStaleOpenDispatch(dispatch, now)),
+    () =>
+      activeDispatches
+        .filter((dispatch) => !isStaleOpenDispatch(dispatch, now))
+        .sort((left, right) => compareDispatchPriority(left, right, now)),
     [activeDispatches, now],
   );
 
@@ -1026,12 +1190,21 @@ export function DispatchDashboard() {
   }, [unitId]);
 
   const primaryDispatch = useMemo(() => {
-    if (featuredDispatch && !isStaleOpenDispatch(featuredDispatch, now)) {
-      return featuredDispatch;
+    if (
+      featuredDispatch &&
+      freshDispatches.some((dispatch) => dispatch.id === featuredDispatch.id)
+    ) {
+      const matchedDispatch = freshDispatches.find(
+        (dispatch) => dispatch.id === featuredDispatch.id,
+      );
+
+      if (matchedDispatch) {
+        return matchedDispatch;
+      }
     }
 
     return freshDispatches[0] ?? null;
-  }, [featuredDispatch, freshDispatches, now]);
+  }, [featuredDispatch, freshDispatches]);
   const additionalDispatches = useMemo(() => {
     if (!primaryDispatch) {
       return freshDispatches;
@@ -1443,9 +1616,9 @@ export function DispatchDashboard() {
           </div>
         ),
         content: (
-          <div className="grid h-full content-start gap-5 xl:grid-cols-[minmax(0,1.15fr)_minmax(320px,0.85fr)]">
-            <div className="grid gap-5 md:grid-cols-2">
-              <div className="rounded-[2rem] border border-white/12 bg-white/7 px-8 py-7">
+          <div className="grid h-full content-start gap-5 xl:grid-cols-[minmax(0,1.18fr)_minmax(360px,0.82fr)] xl:items-start">
+            <div className="grid auto-rows-min gap-5 md:grid-cols-2">
+              <div className="self-start rounded-[2rem] border border-white/12 bg-white/7 px-8 py-7">
                 <p className="font-mono text-sm uppercase tracking-[0.28em] text-white/56">
                   Total Dept. Calls
                 </p>
@@ -1454,7 +1627,7 @@ export function DispatchDashboard() {
                 </p>
                 <p className="mt-4 text-lg text-white/68">Year to date</p>
               </div>
-              <div className="rounded-[2rem] border border-white/12 bg-white/7 px-8 py-7">
+              <div className="self-start rounded-[2rem] border border-white/12 bg-white/7 px-8 py-7">
                 <p className="font-mono text-sm uppercase tracking-[0.28em] text-white/56">
                   Total Apparatus Calls
                 </p>
@@ -1463,7 +1636,7 @@ export function DispatchDashboard() {
                 </p>
                 <p className="mt-4 text-lg text-white/68">{unit.displayName} year to date</p>
               </div>
-              <div className="rounded-[2rem] border border-red-300/16 bg-red-300/8 px-8 py-7">
+              <div className="self-start rounded-[2rem] border border-red-300/16 bg-red-300/8 px-8 py-7">
                 <p className="font-mono text-sm uppercase tracking-[0.28em] text-red-50/72">
                   Fire
                 </p>
@@ -1472,7 +1645,7 @@ export function DispatchDashboard() {
                 </p>
                 <p className="mt-4 text-lg text-white/68">Department fire/rescue incidents</p>
               </div>
-              <div className="rounded-[2rem] border border-sky-300/16 bg-sky-300/8 px-8 py-7">
+              <div className="self-start rounded-[2rem] border border-sky-300/16 bg-sky-300/8 px-8 py-7">
                 <p className="font-mono text-sm uppercase tracking-[0.28em] text-sky-50/72">
                   EMS
                 </p>
@@ -1482,7 +1655,7 @@ export function DispatchDashboard() {
                 <p className="mt-4 text-lg text-white/68">Department EMS incidents</p>
               </div>
             </div>
-            <div className="rounded-[2rem] border border-white/12 bg-black/18 px-8 py-8">
+            <div className="self-start rounded-[2rem] border border-white/12 bg-black/18 px-8 py-8">
               <p className="font-mono text-sm uppercase tracking-[0.28em] text-white/56">
                 Stats Summary
               </p>
@@ -1950,6 +2123,9 @@ export function DispatchDashboard() {
                 <p className="mt-3 text-3xl font-medium">
                   {primaryDispatch.incidentNumber ?? primaryDispatch.id}
                 </p>
+                <p className="mt-2 text-sm text-white/62">
+                  Priority {dispatchPriorityLabel(primaryDispatch, now)}
+                </p>
               </div>
               <div className="rounded-[1.6rem] border border-white/15 bg-black/12 p-5">
                 <p className="font-mono text-sm uppercase tracking-[0.24em] text-white/62">
@@ -1966,11 +2142,11 @@ export function DispatchDashboard() {
                 <p className="mt-3 text-3xl font-medium">
                   {dispatchDisplayStatus(primaryDispatch, now).toUpperCase()}
                 </p>
-                {isStaleOpenDispatch(primaryDispatch, now) ? (
-                  <p className="mt-2 text-sm text-amber-100/80">
-                    {formatDispatchLastActivity(primaryDispatch)}
-                  </p>
-                ) : null}
+                <p className="mt-2 text-sm text-white/68">
+                  {primaryDispatch.enrouteAt
+                    ? `En route ${formatShortTime(primaryDispatch.enrouteAt)}`
+                    : formatDispatchLastActivity(primaryDispatch)}
+                </p>
               </div>
             </div>
 
@@ -2017,29 +2193,49 @@ export function DispatchDashboard() {
               ) : null}
               <ul className="mt-4 grid gap-3">
                 {recentTimelineEvents.length > 0 ? (
-                  recentTimelineEvents.map((event) => (
-                    <li
-                      key={event.id}
-                      className="rounded-[1.3rem] border border-white/12 bg-black/12 px-4 py-4"
-                    >
-                      <div className="flex flex-wrap items-start justify-between gap-3">
-                        <div>
-                          <p className="text-lg font-medium text-white">
-                            {timelineEventLabel(event.eventType)}
-                          </p>
-                          <p className="mt-1 text-sm text-white/62">
-                            {formatTime(event.fetchedAt)}
+                  recentTimelineEvents.map((event) => {
+                    const tone = eventToneClasses(event.eventType);
+
+                    return (
+                      <li
+                        key={event.id}
+                        className={`rounded-[1.3rem] border bg-black/12 px-4 py-4 ${tone.border}`}
+                      >
+                        <div className="flex flex-wrap items-start justify-between gap-3">
+                          <div className="flex items-start gap-3">
+                            <div className="mt-1 flex flex-col items-center">
+                              <span className={`h-3 w-3 rounded-full ${tone.dot}`} />
+                              <span className="mt-2 h-10 w-px bg-white/12" />
+                            </div>
+                            <div>
+                              <div className="flex flex-wrap items-center gap-2">
+                                <p className="text-lg font-medium text-white">
+                                  {timelineEventLabel(event.eventType)}
+                                </p>
+                                <span
+                                  className={`rounded-full px-2 py-1 font-mono text-[10px] uppercase tracking-[0.18em] ${tone.badge}`}
+                                >
+                                  {formatRelativeEventOffset(
+                                    primaryDispatch.dispatchedAt,
+                                    event.fetchedAt,
+                                  )}
+                                </span>
+                              </div>
+                              <p className="mt-1 text-sm text-white/62">
+                                {formatTime(event.fetchedAt)}
+                              </p>
+                            </div>
+                          </div>
+                          <p className="font-mono text-xs uppercase tracking-[0.18em] text-white/54">
+                            {(event.status ?? event.dispatch.status ?? "unknown").toUpperCase()}
                           </p>
                         </div>
-                        <p className="font-mono text-xs uppercase tracking-[0.18em] text-white/54">
-                          {(event.status ?? event.dispatch.status ?? "unknown").toUpperCase()}
+                        <p className="mt-3 text-base leading-7 text-white/84">
+                          {timelineEventSummary(event.dispatch.message, event.eventType)}
                         </p>
-                      </div>
-                      <p className="mt-3 text-base leading-7 text-white/84">
-                        {summarizeDispatchMessage(event.dispatch.message)}
-                      </p>
-                    </li>
-                  ))
+                      </li>
+                    );
+                  })
                 ) : (
                   <li className="rounded-[1.3rem] border border-white/12 bg-black/12 px-4 py-4 text-base text-white/72">
                     Waiting for persisted incident events for this dispatch.
@@ -2113,9 +2309,14 @@ export function DispatchDashboard() {
                       key={dispatch.id}
                       className="rounded-[1.3rem] border border-white/12 bg-black/12 px-4 py-4"
                     >
-                      <p className="text-lg font-medium">
-                        {dispatch.nature ?? "Dispatch Alert"}
-                      </p>
+                      <div className="flex flex-wrap items-start justify-between gap-3">
+                        <p className="text-lg font-medium">
+                          {dispatch.nature ?? "Dispatch Alert"}
+                        </p>
+                        <span className="rounded-full bg-white/10 px-2 py-1 font-mono text-[10px] uppercase tracking-[0.18em] text-white/70">
+                          {dispatchPriorityLabel(dispatch, now)}
+                        </span>
+                      </div>
                       <p className="mt-1 text-sm text-white/72">
                         {dispatch.address ?? "Address not provided"}
                       </p>
