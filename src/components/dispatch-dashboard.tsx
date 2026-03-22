@@ -2154,7 +2154,7 @@ export function DispatchDashboard() {
                 <p className="font-mono text-sm uppercase tracking-[0.38em] text-white/70">
                   Active Dispatch / {unit.displayName}
                 </p>
-                <h1 className="mt-4 max-w-6xl text-6xl font-semibold leading-[0.9] tracking-[-0.06em] text-white sm:text-7xl xl:text-[6.2rem] 2xl:text-[7.6rem]">
+                <h1 className="mt-4 max-w-5xl text-5xl font-semibold leading-[0.9] tracking-[-0.06em] text-white sm:text-6xl xl:text-[4.9rem] 2xl:text-[5.8rem]">
                   {primaryDispatch.nature ?? "Dispatch Alert"}
                 </h1>
               </div>
@@ -2177,83 +2177,145 @@ export function DispatchDashboard() {
               </div>
             </div>
             <div className="mt-6 h-px w-full max-w-6xl bg-white/18" />
-            <p className="mt-6 max-w-6xl line-clamp-2 text-6xl font-semibold leading-[0.9] tracking-[-0.06em] text-white sm:text-7xl xl:text-[6.2rem] 2xl:text-[7.6rem]">
+            <p className="mt-6 max-w-6xl line-clamp-2 text-5xl font-semibold leading-[0.9] tracking-[-0.06em] text-white sm:text-6xl xl:text-[4.8rem] 2xl:text-[5.5rem]">
               {primaryDispatch.address ?? "Address not provided"}
             </p>
+            <div className="mt-7 grid gap-4 xl:grid-cols-[minmax(0,1.1fr)_minmax(360px,0.9fr)] xl:items-start">
+              <div className="rounded-[1.9rem] border border-white/16 bg-black/12 px-6 py-6 xl:min-h-[28rem]">
+                <div className="flex flex-wrap items-center justify-between gap-3">
+                  <p className="font-mono text-sm uppercase tracking-[0.3em] text-white/62">
+                    Incident Timeline
+                  </p>
+                  <p className="text-sm text-white/62">
+                    {timelineEvents.length} event{timelineEvents.length === 1 ? "" : "s"} captured
+                  </p>
+                </div>
+                {timelineMessage ? (
+                  <p className="mt-4 rounded-[1.1rem] border border-white/12 bg-black/12 px-4 py-3 text-sm text-white/78">
+                    {timelineMessage}
+                  </p>
+                ) : null}
+                <div
+                  ref={timelineListRef}
+                  className="mt-4 max-h-[22rem] overflow-y-auto pr-2 xl:max-h-[24rem]"
+                >
+                  <ul className="grid gap-3">
+                    {recentTimelineEvents.length > 0 ? (
+                      recentTimelineEvents.map((event) => {
+                        const tone = eventToneClasses(event.eventType);
 
-            <div className="mt-7 rounded-[1.9rem] border border-white/16 bg-black/12 px-6 py-6">
-              <div className="flex flex-wrap items-center justify-between gap-3">
-                <p className="font-mono text-sm uppercase tracking-[0.3em] text-white/62">
-                  Incident Timeline
-                </p>
-                <p className="text-sm text-white/62">
-                  {timelineEvents.length} event{timelineEvents.length === 1 ? "" : "s"} captured
-                </p>
-              </div>
-              {timelineMessage ? (
-                <p className="mt-4 rounded-[1.1rem] border border-white/12 bg-black/12 px-4 py-3 text-sm text-white/78">
-                  {timelineMessage}
-                </p>
-              ) : null}
-              <div
-                ref={timelineListRef}
-                className="mt-4 max-h-[30vh] overflow-y-auto pr-2"
-              >
-                <ul className="grid gap-3">
-                  {recentTimelineEvents.length > 0 ? (
-                    recentTimelineEvents.map((event) => {
-                      const tone = eventToneClasses(event.eventType);
-
-                      return (
-                        <li
-                          key={event.id}
-                          className={`rounded-[1.3rem] border bg-black/12 px-4 py-4 ${tone.border}`}
-                        >
-                          <div className="flex flex-wrap items-start justify-between gap-3">
-                            <div className="flex items-start gap-3">
-                              <div className="mt-1 flex flex-col items-center">
-                                <span className={`h-3 w-3 rounded-full ${tone.dot}`} />
-                                <span className="mt-2 h-10 w-px bg-white/12" />
-                              </div>
-                              <div>
-                                <div className="flex flex-wrap items-center gap-2">
-                                  <p className="text-lg font-medium text-white">
-                                    {timelineEventLabel(event.eventType)}
-                                  </p>
-                                  <span
-                                    className={`rounded-full px-2 py-1 font-mono text-[10px] uppercase tracking-[0.18em] ${tone.badge}`}
-                                  >
-                                    {formatRelativeEventOffset(
-                                      primaryDispatch.dispatchedAt,
-                                      event.fetchedAt,
-                                    )}
-                                  </span>
+                        return (
+                          <li
+                            key={event.id}
+                            className={`rounded-[1.3rem] border bg-black/12 px-4 py-4 ${tone.border}`}
+                          >
+                            <div className="flex flex-wrap items-start justify-between gap-3">
+                              <div className="flex items-start gap-3">
+                                <div className="mt-1 flex flex-col items-center">
+                                  <span className={`h-3 w-3 rounded-full ${tone.dot}`} />
+                                  <span className="mt-2 h-10 w-px bg-white/12" />
                                 </div>
-                                <p className="mt-1 text-sm text-white/62">
-                                  {formatTime(event.fetchedAt)}
-                                </p>
+                                <div>
+                                  <div className="flex flex-wrap items-center gap-2">
+                                    <p className="text-lg font-medium text-white">
+                                      {timelineEventLabel(event.eventType)}
+                                    </p>
+                                    <span
+                                      className={`rounded-full px-2 py-1 font-mono text-[10px] uppercase tracking-[0.18em] ${tone.badge}`}
+                                    >
+                                      {formatRelativeEventOffset(
+                                        primaryDispatch.dispatchedAt,
+                                        event.fetchedAt,
+                                      )}
+                                    </span>
+                                  </div>
+                                  <p className="mt-1 text-sm text-white/62">
+                                    {formatTime(event.fetchedAt)}
+                                  </p>
+                                </div>
                               </div>
+                              <p className="font-mono text-xs uppercase tracking-[0.18em] text-white/54">
+                                {(event.status ?? event.dispatch.status ?? "unknown").toUpperCase()}
+                              </p>
                             </div>
-                            <p className="font-mono text-xs uppercase tracking-[0.18em] text-white/54">
-                              {(event.status ?? event.dispatch.status ?? "unknown").toUpperCase()}
+                            <p className="mt-3 text-base leading-7 text-white/84">
+                              {timelineEventSummary(event.dispatch.message, event.eventType)}
                             </p>
-                          </div>
-                          <p className="mt-3 text-base leading-7 text-white/84">
-                            {timelineEventSummary(event.dispatch.message, event.eventType)}
-                          </p>
-                        </li>
-                      );
-                    })
-                  ) : (
-                    <li className="rounded-[1.3rem] border border-white/12 bg-black/12 px-4 py-4 text-base text-white/72">
-                      Waiting for persisted incident events for this dispatch.
-                    </li>
-                  )}
-                </ul>
+                          </li>
+                        );
+                      })
+                    ) : (
+                      <li className="rounded-[1.3rem] border border-white/12 bg-black/12 px-4 py-4 text-base text-white/72">
+                        Waiting for persisted incident events for this dispatch.
+                      </li>
+                    )}
+                  </ul>
+                </div>
+              </div>
+
+              <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-1">
+                <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-1">
+                  <div className="rounded-[1.6rem] border border-white/15 bg-black/12 p-5">
+                    <p className="font-mono text-sm uppercase tracking-[0.24em] text-white/62">
+                      Incident
+                    </p>
+                    <p className="mt-3 text-3xl font-medium">
+                      {primaryDispatch.incidentNumber ?? primaryDispatch.id}
+                    </p>
+                    <p className="mt-2 text-sm text-white/62">
+                      Priority {dispatchPriorityLabel(primaryDispatch, now)}
+                    </p>
+                  </div>
+                  <div className="rounded-[1.6rem] border border-white/15 bg-black/12 p-5">
+                    <p className="font-mono text-sm uppercase tracking-[0.24em] text-white/62">
+                      Assigned Units
+                    </p>
+                    <p className="mt-3 text-2xl font-medium leading-tight">
+                      {primaryDispatch.unit ?? "Unassigned"}
+                    </p>
+                  </div>
+                  <div className="rounded-[1.6rem] border border-white/15 bg-black/12 p-5">
+                    <p className="font-mono text-sm uppercase tracking-[0.24em] text-white/62">
+                      Status
+                    </p>
+                    <p className="mt-3 text-3xl font-medium">
+                      {dispatchDisplayStatus(primaryDispatch, now).toUpperCase()}
+                    </p>
+                    <p className="mt-2 text-sm text-white/68">
+                      {primaryDispatch.enrouteAt
+                        ? `En route ${formatShortTime(primaryDispatch.enrouteAt)}`
+                        : formatDispatchLastActivity(primaryDispatch)}
+                    </p>
+                  </div>
+                  <div className="rounded-[1.6rem] border border-white/15 bg-black/12 p-5">
+                    <p className="font-mono text-sm uppercase tracking-[0.24em] text-white/62">
+                      Dispatch Time
+                    </p>
+                    <p className="mt-3 text-3xl font-medium">
+                      {formatTime(primaryDispatch.dispatchedAt)}
+                    </p>
+                  </div>
+                  <div className="rounded-[1.6rem] border border-white/15 bg-black/12 p-5">
+                    <p className="font-mono text-sm uppercase tracking-[0.24em] text-white/62">
+                      Feed
+                    </p>
+                    <p className="mt-3 text-xl font-medium">
+                      {sourceLabel ?? "Not connected"}
+                    </p>
+                  </div>
+                  <div className="rounded-[1.6rem] border border-white/15 bg-black/12 p-5">
+                    <p className="font-mono text-sm uppercase tracking-[0.24em] text-white/62">
+                      Updated
+                    </p>
+                    <p className="mt-3 text-3xl font-medium">
+                      {formatShortTime(fetchedAt)}
+                    </p>
+                  </div>
+                </div>
               </div>
             </div>
 
-            <div className="mt-7 grid gap-4 md:grid-cols-3">
+            <div className="mt-7 hidden gap-4 md:grid-cols-3">
               <div className="rounded-[1.6rem] border border-white/15 bg-black/12 p-5">
                 <p className="font-mono text-sm uppercase tracking-[0.24em] text-white/62">
                   Incident
@@ -2284,33 +2346,6 @@ export function DispatchDashboard() {
                   {primaryDispatch.enrouteAt
                     ? `En route ${formatShortTime(primaryDispatch.enrouteAt)}`
                     : formatDispatchLastActivity(primaryDispatch)}
-                </p>
-              </div>
-            </div>
-
-            <div className="mt-7 grid gap-4 md:grid-cols-3">
-              <div className="rounded-[1.6rem] border border-white/15 bg-black/12 p-5">
-                <p className="font-mono text-sm uppercase tracking-[0.24em] text-white/62">
-                  Dispatch Time
-                </p>
-                <p className="mt-3 text-3xl font-medium">
-                  {formatTime(primaryDispatch.dispatchedAt)}
-                </p>
-              </div>
-              <div className="rounded-[1.6rem] border border-white/15 bg-black/12 p-5">
-                <p className="font-mono text-sm uppercase tracking-[0.24em] text-white/62">
-                  Feed
-                </p>
-                <p className="mt-3 text-xl font-medium">
-                  {sourceLabel ?? "Not connected"}
-                </p>
-              </div>
-              <div className="rounded-[1.6rem] border border-white/15 bg-black/12 p-5">
-                <p className="font-mono text-sm uppercase tracking-[0.24em] text-white/62">
-                  Updated
-                </p>
-                <p className="mt-3 text-3xl font-medium">
-                  {formatShortTime(fetchedAt)}
                 </p>
               </div>
             </div>
