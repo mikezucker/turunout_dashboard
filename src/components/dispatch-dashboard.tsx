@@ -58,6 +58,7 @@ type StatsResponse = {
   message: string | null;
   sourceLabel: string | null;
   year: number;
+  liveTotalsAvailable: boolean;
   totalDepartmentCalls: number;
   totalApparatusCalls: number;
   emsCalls: number;
@@ -717,6 +718,7 @@ export function DispatchDashboard() {
   >([]);
   const [scheduleMessage, setScheduleMessage] = useState<string | null>(null);
   const [statsYear, setStatsYear] = useState<number>(new Date().getFullYear());
+  const [liveStatsAvailable, setLiveStatsAvailable] = useState(false);
   const [totalDepartmentCalls, setTotalDepartmentCalls] = useState(0);
   const [totalApparatusCalls, setTotalApparatusCalls] = useState(0);
   const [emsCalls, setEmsCalls] = useState(0);
@@ -748,6 +750,7 @@ export function DispatchDashboard() {
   const seenIdsRef = useRef<Set<string>>(new Set());
   const idleContentRef = useRef<HTMLDivElement | null>(null);
   const workOrdersListRef = useRef<HTMLDivElement | null>(null);
+  const timelineListRef = useRef<HTMLDivElement | null>(null);
   const stickyMessageTimeoutRef = useRef<number | null>(null);
   const unitId = unit?.id ?? null;
   const unitApparatusApiId = unit?.apparatusApiId ?? null;
@@ -1075,6 +1078,7 @@ export function DispatchDashboard() {
   useEffect(() => {
     if (!unitId) {
       setStatsYear(new Date().getFullYear());
+      setLiveStatsAvailable(false);
       setTotalDepartmentCalls(0);
       setTotalApparatusCalls(0);
       setEmsCalls(0);
@@ -1103,6 +1107,7 @@ export function DispatchDashboard() {
         }
 
         setStatsYear(data.year);
+        setLiveStatsAvailable(data.liveTotalsAvailable);
         setTotalDepartmentCalls(data.totalDepartmentCalls);
         setTotalApparatusCalls(data.totalApparatusCalls);
         setEmsCalls(data.emsCalls);
@@ -1116,6 +1121,7 @@ export function DispatchDashboard() {
         }
 
         setStatsYear(new Date().getFullYear());
+        setLiveStatsAvailable(false);
         setTotalDepartmentCalls(0);
         setTotalApparatusCalls(0);
         setEmsCalls(0);
@@ -1308,6 +1314,7 @@ export function DispatchDashboard() {
     () => [...timelineEvents].slice(-6).reverse(),
     [timelineEvents],
   );
+  const statsUnavailable = !liveStatsAvailable;
   const idleScreens = useMemo<IdleScreen[]>(() => {
     if (!unit) {
       return [];
@@ -1623,7 +1630,7 @@ export function DispatchDashboard() {
                   Total Dept. Calls
                 </p>
                 <p className="mt-4 text-7xl font-semibold tracking-[-0.06em] text-white">
-                  {totalDepartmentCalls}
+                  {statsUnavailable ? "Unavailable" : totalDepartmentCalls}
                 </p>
                 <p className="mt-4 text-lg text-white/68">Year to date</p>
               </div>
@@ -1632,7 +1639,7 @@ export function DispatchDashboard() {
                   Total Apparatus Calls
                 </p>
                 <p className="mt-4 text-7xl font-semibold tracking-[-0.06em] text-white">
-                  {totalApparatusCalls}
+                  {statsUnavailable ? "Unavailable" : totalApparatusCalls}
                 </p>
                 <p className="mt-4 text-lg text-white/68">{unit.displayName} year to date</p>
               </div>
@@ -1641,7 +1648,7 @@ export function DispatchDashboard() {
                   Fire
                 </p>
                 <p className="mt-4 text-7xl font-semibold tracking-[-0.06em] text-white">
-                  {fireRescueCalls}
+                  {statsUnavailable ? "Unavailable" : fireRescueCalls}
                 </p>
                 <p className="mt-4 text-lg text-white/68">Department fire/rescue incidents</p>
               </div>
@@ -1650,7 +1657,7 @@ export function DispatchDashboard() {
                   EMS
                 </p>
                 <p className="mt-4 text-7xl font-semibold tracking-[-0.06em] text-white">
-                  {emsCalls}
+                  {statsUnavailable ? "Unavailable" : emsCalls}
                 </p>
                 <p className="mt-4 text-lg text-white/68">Department EMS incidents</p>
               </div>
@@ -1665,7 +1672,9 @@ export function DispatchDashboard() {
                     Department Split
                   </p>
                   <p className="mt-3 text-2xl font-medium text-white">
-                    {fireRescueCalls} Fire / {emsCalls} EMS
+                    {statsUnavailable
+                      ? "Live totals unavailable"
+                      : `${fireRescueCalls} Fire / ${emsCalls} EMS`}
                   </p>
                 </div>
                 <div className="rounded-[1.5rem] border border-white/10 bg-white/6 px-5 py-5">
@@ -1673,7 +1682,9 @@ export function DispatchDashboard() {
                     Apparatus Share
                   </p>
                   <p className="mt-3 text-2xl font-medium text-white">
-                    {totalDepartmentCalls > 0
+                    {statsUnavailable
+                      ? "Live totals unavailable"
+                      : totalDepartmentCalls > 0
                       ? `${Math.round((totalApparatusCalls / totalDepartmentCalls) * 100)}% of department calls`
                       : "No department calls counted yet"}
                   </p>
@@ -1745,8 +1756,8 @@ export function DispatchDashboard() {
           </div>
         ),
         content: (
-          <div className="grid h-full content-start gap-5 xl:grid-cols-[minmax(0,1.1fr)_minmax(320px,0.9fr)]">
-            <div className="grid gap-5 md:grid-cols-2">
+          <div className="grid h-full content-start gap-5 xl:grid-cols-[repeat(2,minmax(0,1fr))_minmax(340px,1.05fr)]">
+            <div className="grid gap-5 md:grid-cols-2 xl:col-span-2">
               <div className="rounded-[2rem] border border-white/12 bg-white/7 px-8 py-7">
                 <p className="font-mono text-sm uppercase tracking-[0.28em] text-white/56">
                   Last Success
@@ -1792,7 +1803,7 @@ export function DispatchDashboard() {
                 </p>
               </div>
             </div>
-            <div className="rounded-[2rem] border border-white/12 bg-black/18 px-8 py-8">
+            <div className="rounded-[2rem] border border-white/12 bg-black/18 px-8 py-8 xl:col-start-3 xl:row-span-2">
               <p className="font-mono text-sm uppercase tracking-[0.28em] text-white/56">
                 Status Summary
               </p>
@@ -1848,6 +1859,7 @@ export function DispatchDashboard() {
     statsMessage,
     statsSourceLabel,
     statsYear,
+    statsUnavailable,
     totalApparatusCalls,
     totalDepartmentCalls,
     unit,
@@ -1928,6 +1940,60 @@ export function DispatchDashboard() {
     currentIdleScreen?.scrollable,
     primaryDispatch,
   ]);
+  useEffect(() => {
+    if (!primaryDispatch) {
+      return;
+    }
+
+    const container = timelineListRef.current;
+
+    if (!container) {
+      return;
+    }
+
+    const timelineContainer = container;
+
+    timelineContainer.scrollTo({ top: 0, behavior: "auto" });
+
+    const maxScrollTop =
+      timelineContainer.scrollHeight - timelineContainer.clientHeight;
+
+    if (maxScrollTop <= 24) {
+      return;
+    }
+
+    const startDelayMs = 2200;
+    const scrollDurationMs = 14000;
+    let animationFrameId = 0;
+    let animationStartedAt = 0;
+
+    function step(timestamp: number) {
+      if (animationStartedAt === 0) {
+        animationStartedAt = timestamp;
+      }
+
+      const elapsed = timestamp - animationStartedAt;
+      const progress = Math.min(elapsed / scrollDurationMs, 1);
+      const easedProgress = 1 - (1 - progress) * (1 - progress);
+
+      timelineContainer.scrollTop = maxScrollTop * easedProgress;
+
+      if (progress < 1) {
+        animationFrameId = window.requestAnimationFrame(step);
+      }
+    }
+
+    const scrollTimeout = window.setTimeout(() => {
+      animationFrameId = window.requestAnimationFrame(step);
+    }, startDelayMs);
+
+    return () => {
+      window.clearTimeout(scrollTimeout);
+      if (animationFrameId) {
+        window.cancelAnimationFrame(animationFrameId);
+      }
+    };
+  }, [primaryDispatch, recentTimelineEvents]);
   async function handleLogin(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
     setLoggingIn(true);
@@ -2081,7 +2147,7 @@ export function DispatchDashboard() {
     return (
       <main className="flex h-screen w-screen overflow-hidden">
         <section className="grid h-full w-full gap-5 bg-[linear-gradient(135deg,rgba(220,93,52,0.98),rgba(120,23,23,1))] p-7 text-white xl:grid-cols-[minmax(0,1.7fr)_380px]">
-          <div className="min-w-0 overflow-y-auto pr-2">
+          <div className="min-w-0 pr-2">
             <div className="grid gap-6 xl:grid-cols-[auto_minmax(0,1fr)_auto] xl:items-start">
               <DepartmentLogo subtitle="Turnout Board" dark />
               <div className="min-w-0 xl:px-2">
@@ -2114,6 +2180,78 @@ export function DispatchDashboard() {
             <p className="mt-6 max-w-6xl line-clamp-2 text-6xl font-semibold leading-[0.9] tracking-[-0.06em] text-white sm:text-7xl xl:text-[6.2rem] 2xl:text-[7.6rem]">
               {primaryDispatch.address ?? "Address not provided"}
             </p>
+
+            <div className="mt-7 rounded-[1.9rem] border border-white/16 bg-black/12 px-6 py-6">
+              <div className="flex flex-wrap items-center justify-between gap-3">
+                <p className="font-mono text-sm uppercase tracking-[0.3em] text-white/62">
+                  Incident Timeline
+                </p>
+                <p className="text-sm text-white/62">
+                  {timelineEvents.length} event{timelineEvents.length === 1 ? "" : "s"} captured
+                </p>
+              </div>
+              {timelineMessage ? (
+                <p className="mt-4 rounded-[1.1rem] border border-white/12 bg-black/12 px-4 py-3 text-sm text-white/78">
+                  {timelineMessage}
+                </p>
+              ) : null}
+              <div
+                ref={timelineListRef}
+                className="mt-4 max-h-[30vh] overflow-y-auto pr-2"
+              >
+                <ul className="grid gap-3">
+                  {recentTimelineEvents.length > 0 ? (
+                    recentTimelineEvents.map((event) => {
+                      const tone = eventToneClasses(event.eventType);
+
+                      return (
+                        <li
+                          key={event.id}
+                          className={`rounded-[1.3rem] border bg-black/12 px-4 py-4 ${tone.border}`}
+                        >
+                          <div className="flex flex-wrap items-start justify-between gap-3">
+                            <div className="flex items-start gap-3">
+                              <div className="mt-1 flex flex-col items-center">
+                                <span className={`h-3 w-3 rounded-full ${tone.dot}`} />
+                                <span className="mt-2 h-10 w-px bg-white/12" />
+                              </div>
+                              <div>
+                                <div className="flex flex-wrap items-center gap-2">
+                                  <p className="text-lg font-medium text-white">
+                                    {timelineEventLabel(event.eventType)}
+                                  </p>
+                                  <span
+                                    className={`rounded-full px-2 py-1 font-mono text-[10px] uppercase tracking-[0.18em] ${tone.badge}`}
+                                  >
+                                    {formatRelativeEventOffset(
+                                      primaryDispatch.dispatchedAt,
+                                      event.fetchedAt,
+                                    )}
+                                  </span>
+                                </div>
+                                <p className="mt-1 text-sm text-white/62">
+                                  {formatTime(event.fetchedAt)}
+                                </p>
+                              </div>
+                            </div>
+                            <p className="font-mono text-xs uppercase tracking-[0.18em] text-white/54">
+                              {(event.status ?? event.dispatch.status ?? "unknown").toUpperCase()}
+                            </p>
+                          </div>
+                          <p className="mt-3 text-base leading-7 text-white/84">
+                            {timelineEventSummary(event.dispatch.message, event.eventType)}
+                          </p>
+                        </li>
+                      );
+                    })
+                  ) : (
+                    <li className="rounded-[1.3rem] border border-white/12 bg-black/12 px-4 py-4 text-base text-white/72">
+                      Waiting for persisted incident events for this dispatch.
+                    </li>
+                  )}
+                </ul>
+              </div>
+            </div>
 
             <div className="mt-7 grid gap-4 md:grid-cols-3">
               <div className="rounded-[1.6rem] border border-white/15 bg-black/12 p-5">
@@ -2175,73 +2313,6 @@ export function DispatchDashboard() {
                   {formatShortTime(fetchedAt)}
                 </p>
               </div>
-            </div>
-
-            <div className="mt-7 rounded-[1.9rem] border border-white/16 bg-black/12 px-6 py-6">
-              <div className="flex flex-wrap items-center justify-between gap-3">
-                <p className="font-mono text-sm uppercase tracking-[0.3em] text-white/62">
-                  Incident Timeline
-                </p>
-                <p className="text-sm text-white/62">
-                  {timelineEvents.length} event{timelineEvents.length === 1 ? "" : "s"} captured
-                </p>
-              </div>
-              {timelineMessage ? (
-                <p className="mt-4 rounded-[1.1rem] border border-white/12 bg-black/12 px-4 py-3 text-sm text-white/78">
-                  {timelineMessage}
-                </p>
-              ) : null}
-              <ul className="mt-4 grid gap-3">
-                {recentTimelineEvents.length > 0 ? (
-                  recentTimelineEvents.map((event) => {
-                    const tone = eventToneClasses(event.eventType);
-
-                    return (
-                      <li
-                        key={event.id}
-                        className={`rounded-[1.3rem] border bg-black/12 px-4 py-4 ${tone.border}`}
-                      >
-                        <div className="flex flex-wrap items-start justify-between gap-3">
-                          <div className="flex items-start gap-3">
-                            <div className="mt-1 flex flex-col items-center">
-                              <span className={`h-3 w-3 rounded-full ${tone.dot}`} />
-                              <span className="mt-2 h-10 w-px bg-white/12" />
-                            </div>
-                            <div>
-                              <div className="flex flex-wrap items-center gap-2">
-                                <p className="text-lg font-medium text-white">
-                                  {timelineEventLabel(event.eventType)}
-                                </p>
-                                <span
-                                  className={`rounded-full px-2 py-1 font-mono text-[10px] uppercase tracking-[0.18em] ${tone.badge}`}
-                                >
-                                  {formatRelativeEventOffset(
-                                    primaryDispatch.dispatchedAt,
-                                    event.fetchedAt,
-                                  )}
-                                </span>
-                              </div>
-                              <p className="mt-1 text-sm text-white/62">
-                                {formatTime(event.fetchedAt)}
-                              </p>
-                            </div>
-                          </div>
-                          <p className="font-mono text-xs uppercase tracking-[0.18em] text-white/54">
-                            {(event.status ?? event.dispatch.status ?? "unknown").toUpperCase()}
-                          </p>
-                        </div>
-                        <p className="mt-3 text-base leading-7 text-white/84">
-                          {timelineEventSummary(event.dispatch.message, event.eventType)}
-                        </p>
-                      </li>
-                    );
-                  })
-                ) : (
-                  <li className="rounded-[1.3rem] border border-white/12 bg-black/12 px-4 py-4 text-base text-white/72">
-                    Waiting for persisted incident events for this dispatch.
-                  </li>
-                )}
-              </ul>
             </div>
           </div>
 
@@ -2359,35 +2430,21 @@ export function DispatchDashboard() {
         >
           {currentIdleScreen.artwork}
           <div className="absolute inset-0 bg-[linear-gradient(180deg,rgba(0,0,0,0.04),rgba(0,0,0,0.34))]" />
-          <div className="relative grid h-full gap-8 px-10 py-10 sm:px-12 sm:py-12 xl:grid-cols-[minmax(0,1fr)_220px]">
-            <div className="flex min-h-0 min-w-0 flex-col">
-              <div className="grid gap-6 xl:grid-cols-[auto_minmax(0,1fr)] xl:items-start">
-                <DepartmentLogo subtitle="Turnout Board" dark />
-                <div className="min-w-0 xl:px-2">
-                  <p className="font-mono text-sm uppercase tracking-[0.34em] text-white/58">
-                    {currentIdleScreen.eyebrow}
-                  </p>
-                  <h1 className="mt-4 max-w-5xl text-5xl font-semibold leading-[0.92] tracking-[-0.07em] text-white sm:text-6xl 2xl:text-[6rem]">
-                    {currentIdleScreen.title}
-                  </h1>
-                  <p className="mt-4 max-w-4xl text-xl leading-tight text-white/80 2xl:text-2xl">
-                    {currentIdleScreen.description}
-                  </p>
-                </div>
+          <div className="relative grid h-full grid-rows-[auto_minmax(0,1fr)_auto] gap-8 px-8 py-8 sm:px-10 sm:py-10 xl:px-12 xl:py-12">
+            <div className="grid gap-6 xl:grid-cols-[auto_minmax(0,1fr)_minmax(220px,280px)] xl:items-start">
+              <DepartmentLogo subtitle="Turnout Board" dark />
+              <div className="min-w-0 xl:px-2">
+                <p className="font-mono text-sm uppercase tracking-[0.34em] text-white/58">
+                  {currentIdleScreen.eyebrow}
+                </p>
+                <h1 className="mt-4 max-w-4xl text-4xl font-semibold leading-[0.94] tracking-[-0.07em] text-white sm:text-5xl 2xl:text-[5.25rem]">
+                  {currentIdleScreen.title}
+                </h1>
+                <p className="mt-4 max-w-3xl text-lg leading-tight text-white/80 2xl:text-xl">
+                  {currentIdleScreen.description}
+                </p>
               </div>
-
-              <div
-                ref={idleContentRef}
-                className={`mt-6 min-h-0 flex-1 ${
-                  currentIdleScreen.scrollable ? "overflow-y-auto pr-3" : ""
-                }`}
-              >
-                {currentIdleScreen.content}
-              </div>
-            </div>
-
-            <div className="hidden xl:flex xl:flex-col xl:items-end xl:justify-between">
-              <div className="w-full text-right">
+              <div className="hidden xl:block xl:text-right">
                 <div className="flex justify-end">
                   <UnitBrandBlock unit={unit} />
                 </div>
@@ -2404,7 +2461,23 @@ export function DispatchDashboard() {
                   </p>
                 ) : null}
               </div>
-              <div className="text-right">
+            </div>
+
+            <div
+              ref={idleContentRef}
+              className={`min-h-0 ${
+                currentIdleScreen.scrollable ? "overflow-y-auto pr-2" : ""
+              }`}
+            >
+              {currentIdleScreen.content}
+            </div>
+
+            <div className="flex items-end justify-between gap-4">
+              <div className="xl:hidden">
+                <DepartmentLogo subtitle="Turnout Board" dark />
+                <p className="mt-3 text-sm text-white/68">{unit.displayName}</p>
+              </div>
+              <div className="ml-auto text-right">
                 <button
                   type="button"
                   onClick={handleLogout}
@@ -2413,10 +2486,10 @@ export function DispatchDashboard() {
                 >
                   {loggingOut ? "Logging Out" : "Log Out"}
                 </button>
-                <p className="font-mono text-xs uppercase tracking-[0.28em] text-white/40">
+                <p className="mt-3 font-mono text-xs uppercase tracking-[0.28em] text-white/40">
                   Screen
                 </p>
-                <p className="mt-3 text-lg text-white/72">{currentIdleScreen.label}</p>
+                <p className="mt-2 text-lg text-white/72">{currentIdleScreen.label}</p>
               </div>
             </div>
           </div>

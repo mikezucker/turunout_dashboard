@@ -27,6 +27,7 @@ export type DispatchStatsResult = {
   message: string | null;
   sourceLabel: string | null;
   year: number;
+  liveTotalsAvailable: boolean;
   totalDepartmentCalls: number;
   totalApparatusCalls: number;
   emsCalls: number;
@@ -44,6 +45,11 @@ export type DispatchStatsResult = {
 
 const PAGE_SIZE_FALLBACK = 20;
 const CLASSIFICATION_MAX_PAGES = 50;
+const ROLLING_WINDOWS = [
+  { label: "Last 24 Hours", days: 1 },
+  { label: "Last 7 Days", days: 7 },
+  { label: "Last 30 Days", days: 30 },
+] as const;
 
 const EMS_CALL_TYPES = new Set([
   "ABDOMINAL PAIN   PROBLEMS",
@@ -209,49 +215,130 @@ function buildRollingWindowSummary(
   };
 }
 
-async function fetchRollingDispatchWindows(unit: UnitMatcher | null) {
-  const windows = [
-    { label: "Last 24 Hours", days: 1 },
-    { label: "Last 7 Days", days: 7 },
-    { label: "Last 30 Days", days: 30 },
-  ];
+function emptyRollingWindowSummary(sourceLabel: string | null) {
+  return ROLLING_WINDOWS.map((window) => ({
+    ...window,
+    totalDepartmentCalls: 0,
+    totalApparatusCalls: 0,
+    emsCalls: 0,
+    fireRescueCalls: 0,
+    sourceLabel,
+  }));
+}
 
+function joinMessages(...parts: Array<string | null>) {
+  const filtered = parts.filter(
+    (part): part is string => typeof part === "string" && part.trim().length > 0,
+  );
+
+  return filtered.length > 0 ? filtered.join(" ") : null;
+}
+
+async function fetchRollingDispatchWindows(unit: UnitMatcher | null) {
   if (!isDatabaseConfigured()) {
-    return windows.map((window) => ({
-      ...window,
-      totalDepartmentCalls: 0,
-      totalApparatusCalls: 0,
-      emsCalls: 0,
-      fireRescueCalls: 0,
-      sourceLabel: null,
-    }));
+    return {
+      rollingWindows: emptyRollingWindowSummary(null),
+      message: null,
+    };
   }
 
-  const maxDays = Math.max(...windows.map((window) => window.days));
-  const incidents = await getPersistedIncidentsSince(daysAgoIso(maxDays));
-  const sourceLabel = `Persisted incident history (${getDispatchRetentionDays()}-day retention)`;
+  try {
+    const maxDays = Math.max(...ROLLING_WINDOWS.map((window) => window.days));
+    const incidents = await getPersistedIncidentsSince(daysAgoIso(maxDays));
+    const sourceLabel = `Persisted incident history (${getDispatchRetentionDays()}-day retention)`;
 
-  return windows.map((window) => {
-    const threshold = Date.parse(daysAgoIso(window.days));
-    const filtered = incidents.filter((dispatch) => {
-      const timestamp = dispatch.lastActivityAt ?? dispatch.dispatchedAt ?? null;
+    return {
+      rollingWindows: ROLLING_WINDOWS.map((window) => {
+        const threshold = Date.parse(daysAgoIso(window.days));
+        const filtered = incidents.filter((dispatch) => {
+          const timestamp = dispatch.lastActivityAt ?? dispatch.dispatchedAt ?? null;
 
-      if (!timestamp) {
-        return false;
-      }
+          if (!timestamp) {
+            return false;
+          }
 
-      const parsed = Date.parse(timestamp);
-      return Number.isFinite(parsed) && parsed >= threshold;
-    });
+          const parsed = Date.parse(timestamp);
+          return Number.isFinite(parsed) && parsed >= threshold;
+        });
 
-    return buildRollingWindowSummary(
-      window.label,
-      window.days,
-      filtered,
-      unit,
-      sourceLabel,
-    );
-  });
+        return buildRollingWindowSummary(
+          window.label,
+          window.days,
+          filtered,
+          unit,
+          sourceLabel,
+        );
+      }),
+      message: null,
+    };
+  } catch (error) {
+    const reason =
+      error instanceof Error ? error.message : "Unknown persisted-incident error.";
+    console.error("[stats] rolling windows unavailable", reason);
+
+    return {
+      rollingWindows: emptyRollingWindowSummary("Persisted incident history unavailable"),
+      message: `Recent windows unavailable. ${reason}`,
+    };
+  }
+}
+
+function unavailableStatsResult({
+  year,
+  sourceLabel,
+  message,
+  rollingWindows,
+}: {
+  year: number;
+  sourceLabel: string | null;
+  message: string | null;
+  rollingWindows: DispatchStatsResult["rollingWindows"];
+}): DispatchStatsResult {
+  return {
+    ok: false,
+    message,
+    sourceLabel,
+    year,
+    liveTotalsAvailable: false,
+    totalDepartmentCalls: 0,
+    totalApparatusCalls: 0,
+    emsCalls: 0,
+    fireRescueCalls: 0,
+    rollingWindows,
+  };
+}
+
+function availableStatsResult({
+  year,
+  sourceLabel,
+  message,
+  rollingWindows,
+  totalDepartmentCalls,
+  totalApparatusCalls,
+  emsCalls,
+  fireRescueCalls,
+}: {
+  year: number;
+  sourceLabel: string | null;
+  message: string | null;
+  rollingWindows: DispatchStatsResult["rollingWindows"];
+  totalDepartmentCalls: number;
+  totalApparatusCalls: number;
+  emsCalls: number;
+  fireRescueCalls: number;
+}): DispatchStatsResult {
+  return {
+    ok: true,
+    message,
+    sourceLabel,
+    year,
+    liveTotalsAvailable: true,
+    totalDepartmentCalls,
+    totalApparatusCalls,
+    emsCalls,
+    fireRescueCalls,
+    rollingWindows,
+  };
 }
 
 export async function fetchDispatchStats(
@@ -259,23 +346,21 @@ export async function fetchDispatchStats(
 ): Promise<DispatchStatsResult> {
   const year = new Date().getFullYear();
   const sinceIso = easternYearStartSinceIso();
-  const rollingWindows = await fetchRollingDispatchWindows(unit);
+  const {
+    rollingWindows,
+    message: rollingWindowsMessage,
+  } = await fetchRollingDispatchWindows(unit);
 
   const headers = getFirstDueAuthHeaders();
   const apiUrl = getFirstDueApiUrl();
 
   if (!headers || !apiUrl) {
-    return {
-      ok: false,
-      message: "FirstDue auth is not configured.",
-      sourceLabel: null,
+    return unavailableStatsResult({
       year,
-      totalDepartmentCalls: 0,
-      totalApparatusCalls: 0,
-      emsCalls: 0,
-      fireRescueCalls: 0,
+      message: joinMessages(rollingWindowsMessage, "FirstDue auth is not configured."),
+      sourceLabel: null,
       rollingWindows,
-    };
+    });
   }
 
   try {
@@ -283,17 +368,15 @@ export async function fetchDispatchStats(
     const firstResponse = first.response;
 
     if (!firstResponse.ok) {
-      return {
-        ok: false,
-        message: `Dispatch stats request failed (${firstResponse.status}).`,
-        sourceLabel: describeSource(apiUrl),
+      return unavailableStatsResult({
         year,
-        totalDepartmentCalls: 0,
-        totalApparatusCalls: 0,
-        emsCalls: 0,
-        fireRescueCalls: 0,
+        message: joinMessages(
+          rollingWindowsMessage,
+          `Dispatch stats request failed (${firstResponse.status}).`,
+        ),
+        sourceLabel: describeSource(apiUrl),
         rollingWindows,
-      };
+      });
     }
 
     const lastPage = parseLastPageFromLinkHeader(firstResponse.headers.get("link"));
@@ -304,17 +387,15 @@ export async function fetchDispatchStats(
       const last = await fetchDispatchPage(buildStatsUrl(apiUrl, lastPage, sinceIso), headers);
 
       if (!last.response.ok) {
-        return {
-          ok: false,
-          message: `Dispatch stats request failed (${last.response.status}).`,
-          sourceLabel: describeSource(apiUrl),
+        return unavailableStatsResult({
           year,
-          totalDepartmentCalls: 0,
-          totalApparatusCalls: 0,
-          emsCalls: 0,
-          fireRescueCalls: 0,
+          message: joinMessages(
+            rollingWindowsMessage,
+            `Dispatch stats request failed (${last.response.status}).`,
+          ),
+          sourceLabel: describeSource(apiUrl),
           rollingWindows,
-        };
+        });
       }
 
       totalDepartmentCalls = (lastPage - 1) * pageSize + last.dispatches.length;
@@ -326,44 +407,54 @@ export async function fetchDispatchStats(
     let fireRescueCalls = firstClassified.fireRescueCalls;
 
     const cappedLastPage = Math.min(lastPage, CLASSIFICATION_MAX_PAGES);
+    let classificationMessage: string | null =
+      lastPage > cappedLastPage
+        ? `Live classification capped at ${cappedLastPage} pages.`
+        : null;
 
     for (let page = 2; page <= cappedLastPage; page += 1) {
-      const current = await fetchDispatchPage(buildStatsUrl(apiUrl, page, sinceIso), headers);
+      try {
+        const current = await fetchDispatchPage(buildStatsUrl(apiUrl, page, sinceIso), headers);
 
-      if (!current.response.ok) {
+        if (!current.response.ok) {
+          classificationMessage = `Live classification stopped at page ${page} (${current.response.status}).`;
+          break;
+        }
+
+        totalApparatusCalls += filterDispatchesForUnit(current.dispatches, unit).length;
+
+        const classified = classifyCalls(current.dispatches);
+        emsCalls += classified.emsCalls;
+        fireRescueCalls += classified.fireRescueCalls;
+      } catch (error) {
+        const reason =
+          error instanceof Error ? error.message : "Unknown page classification error.";
+        console.error("[stats] classification stopped", { page, reason });
+        classificationMessage = `Live classification stopped at page ${page}. ${reason}`;
         break;
       }
-
-      totalApparatusCalls += filterDispatchesForUnit(current.dispatches, unit).length;
-
-      const classified = classifyCalls(current.dispatches);
-      emsCalls += classified.emsCalls;
-      fireRescueCalls += classified.fireRescueCalls;
     }
 
-    return {
-      ok: true,
-      message: null,
-      sourceLabel: describeSource(apiUrl),
+    return availableStatsResult({
       year,
+      message: joinMessages(rollingWindowsMessage, classificationMessage),
+      sourceLabel: describeSource(apiUrl),
+      rollingWindows,
       totalDepartmentCalls,
       totalApparatusCalls,
       emsCalls,
       fireRescueCalls,
-      rollingWindows,
-    };
+    });
   } catch (error) {
-    return {
-      ok: false,
-      message:
-        error instanceof Error ? error.message : "Dispatch stats unavailable.",
-      sourceLabel: describeSource(apiUrl),
+    const reason =
+      error instanceof Error ? error.message : "Dispatch stats unavailable.";
+    console.error("[stats] live totals unavailable", reason);
+
+    return unavailableStatsResult({
       year,
-      totalDepartmentCalls: 0,
-      totalApparatusCalls: 0,
-      emsCalls: 0,
-      fireRescueCalls: 0,
+      message: joinMessages(rollingWindowsMessage, reason),
+      sourceLabel: describeSource(apiUrl),
       rollingWindows,
-    };
+    });
   }
 }
