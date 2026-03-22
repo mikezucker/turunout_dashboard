@@ -37,7 +37,7 @@ function getDatabaseUrl() {
   return getDatabaseCandidate()?.value ?? null;
 }
 
-function describeDatabaseTarget() {
+export function describeDatabaseTarget() {
   const candidate = getDatabaseCandidate();
 
   if (!candidate) {

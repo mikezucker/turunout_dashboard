@@ -2,6 +2,11 @@ import {
   filterDispatchesForUnit,
   normalizeDispatchPayload,
 } from "@/lib/dispatches";
+import { isDatabaseConfigured } from "@/lib/db";
+import {
+  getDispatchRetentionDays,
+  getPersistedIncidentsSince,
+} from "@/lib/dispatch-store";
 import type { DispatchRecord } from "@/lib/dispatch-shared";
 import {
   getFirstDueApiUrl,
@@ -26,6 +31,15 @@ export type DispatchStatsResult = {
   totalApparatusCalls: number;
   emsCalls: number;
   fireRescueCalls: number;
+  rollingWindows: Array<{
+    label: string;
+    days: number;
+    totalDepartmentCalls: number;
+    totalApparatusCalls: number;
+    emsCalls: number;
+    fireRescueCalls: number;
+    sourceLabel: string | null;
+  }>;
 };
 
 const PAGE_SIZE_FALLBACK = 20;
@@ -127,6 +141,10 @@ function easternYearStartSinceIso(now = new Date()) {
   return `${year}-01-01T05:00:00Z`;
 }
 
+function daysAgoIso(days: number, now = new Date()) {
+  return new Date(now.getTime() - days * 24 * 60 * 60 * 1000).toISOString();
+}
+
 function buildStatsUrl(baseUrl: string, page: number, sinceIso: string) {
   const url = new URL(baseUrl);
   url.searchParams.set("page", String(page));
@@ -171,11 +189,77 @@ function classifyCalls(dispatches: DispatchRecord[]) {
   return { emsCalls, fireRescueCalls };
 }
 
+function buildRollingWindowSummary(
+  label: string,
+  days: number,
+  dispatches: DispatchRecord[],
+  unit: UnitMatcher | null,
+  sourceLabel: string | null,
+) {
+  const classified = classifyCalls(dispatches);
+
+  return {
+    label,
+    days,
+    totalDepartmentCalls: dispatches.length,
+    totalApparatusCalls: filterDispatchesForUnit(dispatches, unit).length,
+    emsCalls: classified.emsCalls,
+    fireRescueCalls: classified.fireRescueCalls,
+    sourceLabel,
+  };
+}
+
+async function fetchRollingDispatchWindows(unit: UnitMatcher | null) {
+  const windows = [
+    { label: "Last 24 Hours", days: 1 },
+    { label: "Last 7 Days", days: 7 },
+    { label: "Last 30 Days", days: 30 },
+  ];
+
+  if (!isDatabaseConfigured()) {
+    return windows.map((window) => ({
+      ...window,
+      totalDepartmentCalls: 0,
+      totalApparatusCalls: 0,
+      emsCalls: 0,
+      fireRescueCalls: 0,
+      sourceLabel: null,
+    }));
+  }
+
+  const maxDays = Math.max(...windows.map((window) => window.days));
+  const incidents = await getPersistedIncidentsSince(daysAgoIso(maxDays));
+  const sourceLabel = `Persisted incident history (${getDispatchRetentionDays()}-day retention)`;
+
+  return windows.map((window) => {
+    const threshold = Date.parse(daysAgoIso(window.days));
+    const filtered = incidents.filter((dispatch) => {
+      const timestamp = dispatch.lastActivityAt ?? dispatch.dispatchedAt ?? null;
+
+      if (!timestamp) {
+        return false;
+      }
+
+      const parsed = Date.parse(timestamp);
+      return Number.isFinite(parsed) && parsed >= threshold;
+    });
+
+    return buildRollingWindowSummary(
+      window.label,
+      window.days,
+      filtered,
+      unit,
+      sourceLabel,
+    );
+  });
+}
+
 export async function fetchDispatchStats(
   unit: UnitMatcher | null,
 ): Promise<DispatchStatsResult> {
   const year = new Date().getFullYear();
   const sinceIso = easternYearStartSinceIso();
+  const rollingWindows = await fetchRollingDispatchWindows(unit);
 
   const headers = getFirstDueAuthHeaders();
   const apiUrl = getFirstDueApiUrl();
@@ -190,6 +274,7 @@ export async function fetchDispatchStats(
       totalApparatusCalls: 0,
       emsCalls: 0,
       fireRescueCalls: 0,
+      rollingWindows,
     };
   }
 
@@ -207,6 +292,7 @@ export async function fetchDispatchStats(
         totalApparatusCalls: 0,
         emsCalls: 0,
         fireRescueCalls: 0,
+        rollingWindows,
       };
     }
 
@@ -227,6 +313,7 @@ export async function fetchDispatchStats(
           totalApparatusCalls: 0,
           emsCalls: 0,
           fireRescueCalls: 0,
+          rollingWindows,
         };
       }
 
@@ -263,6 +350,7 @@ export async function fetchDispatchStats(
       totalApparatusCalls,
       emsCalls,
       fireRescueCalls,
+      rollingWindows,
     };
   } catch (error) {
     return {
@@ -275,6 +363,7 @@ export async function fetchDispatchStats(
       totalApparatusCalls: 0,
       emsCalls: 0,
       fireRescueCalls: 0,
+      rollingWindows,
     };
   }
 }

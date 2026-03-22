@@ -1,12 +1,14 @@
 import crypto from "node:crypto";
 import { once } from "node:events";
 import Redis from "ioredis";
+import { isDatabaseConfigured, describeDatabaseTarget } from "@/lib/db";
 import {
   fetchFirstDueDispatches,
   type DispatchFetchResult,
 } from "@/lib/dispatches";
 import { type DispatchSnapshot } from "@/lib/dispatch-feed";
 import {
+  getDispatchRetentionDays,
   getLatestPersistedDispatchSnapshot,
   persistDispatchSnapshot,
 } from "@/lib/dispatch-store";
@@ -21,6 +23,19 @@ type DispatchHubState = {
   snapshot: DispatchSnapshot | null;
   signature: string | null;
   redis: RedisState | null;
+  telemetry: DispatchHubTelemetry;
+};
+
+type DispatchHubTelemetry = {
+  lastRefreshStartedAt: string | null;
+  lastRefreshCompletedAt: string | null;
+  lastSuccessfulFetchAt: string | null;
+  lastFetchDurationMs: number | null;
+  lastPersistDurationMs: number | null;
+  lastRefreshDurationMs: number | null;
+  lastError: string | null;
+  lastResultMessage: string | null;
+  lastUpstreamStatus: number | null;
 };
 
 type RedisState = {
@@ -126,6 +141,17 @@ function getDispatchHubState(): DispatchHubState {
       snapshot: null,
       signature: null,
       redis: null,
+      telemetry: {
+        lastRefreshStartedAt: null,
+        lastRefreshCompletedAt: null,
+        lastSuccessfulFetchAt: null,
+        lastFetchDurationMs: null,
+        lastPersistDurationMs: null,
+        lastRefreshDurationMs: null,
+        lastError: null,
+        lastResultMessage: null,
+        lastUpstreamStatus: null,
+      },
     };
   }
 
@@ -329,6 +355,7 @@ async function persistRedisSnapshot(
   state: DispatchHubState,
   result: DispatchFetchResult,
 ) {
+  const persistStartedAt = Date.now();
   const redis = getRedisState(state);
 
   if (!redis) {
@@ -344,6 +371,7 @@ async function persistRedisSnapshot(
 
     applySnapshot(state, snapshot, true);
     await persistDispatchSnapshot(snapshot);
+    state.telemetry.lastPersistDurationMs = Date.now() - persistStartedAt;
     return snapshot;
   }
 
@@ -371,20 +399,43 @@ async function persistRedisSnapshot(
   await redis.publisher.publish(redisChannelName(), serializedSnapshot);
   applySnapshot(state, snapshot, true);
   await persistDispatchSnapshot(snapshot);
+  state.telemetry.lastPersistDurationMs = Date.now() - persistStartedAt;
 
   return snapshot;
 }
 
 async function fetchAndPersistSnapshot(state: DispatchHubState) {
   let result: DispatchFetchResult;
+  const refreshStartedAt = Date.now();
+  state.telemetry.lastRefreshStartedAt = new Date(refreshStartedAt).toISOString();
 
   try {
+    const fetchStartedAt = Date.now();
     result = await fetchFirstDueDispatches();
+    state.telemetry.lastFetchDurationMs = Date.now() - fetchStartedAt;
   } catch (error) {
+    state.telemetry.lastFetchDurationMs =
+      Date.now() - refreshStartedAt;
     result = createFallbackResult(error);
   }
 
-  return persistRedisSnapshot(state, result);
+  const snapshot = await persistRedisSnapshot(state, result);
+  const completedAt = new Date().toISOString();
+
+  state.telemetry.lastRefreshCompletedAt = completedAt;
+  state.telemetry.lastRefreshDurationMs = Date.now() - refreshStartedAt;
+  state.telemetry.lastUpstreamStatus = result.upstreamStatus;
+  state.telemetry.lastResultMessage = result.message;
+  state.telemetry.lastError =
+    result.upstreamStatus && result.upstreamStatus >= 200 && result.upstreamStatus < 300
+      ? null
+      : result.message;
+
+  if (result.upstreamStatus && result.upstreamStatus >= 200 && result.upstreamStatus < 300) {
+    state.telemetry.lastSuccessfulFetchAt = completedAt;
+  }
+
+  return snapshot;
 }
 
 async function refreshWithSharedStore(state: DispatchHubState) {
@@ -472,5 +523,34 @@ export function subscribeToDispatches(listener: DispatchListener) {
 
   return () => {
     state.listeners.delete(listener);
+  };
+}
+
+export function getDispatchHubHealth() {
+  const state = getDispatchHubState();
+  const redis = state.redis;
+
+  return {
+    ok: true,
+    pollIntervalMs: getPollIntervalMs(),
+    lockTtlMs: getPollLockTtlMs(),
+    retentionDays: getDispatchRetentionDays(),
+    listeners: state.listeners.size,
+    revision: state.snapshot?.revision ?? state.revision,
+    snapshotFetchedAt: state.snapshot?.fetchedAt ?? null,
+    snapshotUpstreamStatus: state.snapshot?.result.upstreamStatus ?? null,
+    snapshotSourceLabel: state.snapshot?.result.sourceLabel ?? null,
+    database: {
+      configured: isDatabaseConfigured(),
+      target: isDatabaseConfigured() ? describeDatabaseTarget() : null,
+    },
+    redis: {
+      configured: Boolean(getRedisUrl()),
+      subscribed: redis?.subscribed ?? false,
+      clientStatus: redis?.client.status ?? "disabled",
+      publisherStatus: redis?.publisher.status ?? "disabled",
+      subscriberStatus: redis?.subscriber.status ?? "disabled",
+    },
+    telemetry: { ...state.telemetry },
   };
 }

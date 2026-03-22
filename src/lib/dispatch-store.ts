@@ -10,12 +10,21 @@ type StoredIncident = {
   status: string | null;
 };
 
+export type DispatchEventRecord = {
+  id: number;
+  incidentId: string;
+  fetchedAt: string;
+  eventType: string;
+  status: string | null;
+  dispatch: DispatchRecord;
+};
+
 const RETENTION_CLEANUP_INTERVAL_MS = 60 * 60 * 1000;
 const globalForDispatchStore = globalThis as typeof globalThis & {
   __turnoutDispatchRetentionCleanupAt?: number;
 };
 
-function getDispatchRetentionDays() {
+export function getDispatchRetentionDays() {
   const rawValue = process.env.DISPATCH_RETENTION_DAYS?.trim() ?? "30";
   const parsedValue = Number(rawValue);
 
@@ -351,4 +360,48 @@ export async function getPersistedIncidentsSince(sinceIso: string) {
     enrouteAt: row.enroute_at,
     raw: row.raw,
   })) satisfies DispatchRecord[];
+}
+
+export async function getIncidentEvents(
+  incidentId: string,
+  limit = 20,
+): Promise<DispatchEventRecord[]> {
+  if (!isDatabaseConfigured()) {
+    return [];
+  }
+
+  const result = await query<{
+    id: string;
+    incident_id: string;
+    fetched_at: string;
+    event_type: string;
+    status: string | null;
+    payload: unknown;
+  }>(
+    `
+      SELECT
+        id,
+        incident_id,
+        fetched_at,
+        event_type,
+        status,
+        payload
+      FROM dispatch_events
+      WHERE incident_id = $1
+      ORDER BY fetched_at DESC, id DESC
+      LIMIT $2
+    `,
+    [incidentId, limit],
+  );
+
+  return result.rows
+    .map((row) => ({
+      id: Number(row.id),
+      incidentId: row.incident_id,
+      fetchedAt: new Date(row.fetched_at).toISOString(),
+      eventType: row.event_type,
+      status: row.status,
+      dispatch: row.payload as DispatchRecord,
+    }))
+    .reverse();
 }

@@ -62,6 +62,63 @@ type StatsResponse = {
   totalApparatusCalls: number;
   emsCalls: number;
   fireRescueCalls: number;
+  rollingWindows: Array<{
+    label: string;
+    days: number;
+    totalDepartmentCalls: number;
+    totalApparatusCalls: number;
+    emsCalls: number;
+    fireRescueCalls: number;
+    sourceLabel: string | null;
+  }>;
+};
+
+type DispatchHealthResponse = {
+  ok: boolean;
+  pollIntervalMs: number;
+  lockTtlMs: number;
+  retentionDays: number;
+  listeners: number;
+  revision: number;
+  snapshotFetchedAt: string | null;
+  snapshotUpstreamStatus: number | null;
+  snapshotSourceLabel: string | null;
+  database: {
+    configured: boolean;
+    target: string | null;
+  };
+  redis: {
+    configured: boolean;
+    subscribed: boolean;
+    clientStatus: string;
+    publisherStatus: string;
+    subscriberStatus: string;
+  };
+  telemetry: {
+    lastRefreshStartedAt: string | null;
+    lastRefreshCompletedAt: string | null;
+    lastSuccessfulFetchAt: string | null;
+    lastFetchDurationMs: number | null;
+    lastPersistDurationMs: number | null;
+    lastRefreshDurationMs: number | null;
+    lastError: string | null;
+    lastResultMessage: string | null;
+    lastUpstreamStatus: number | null;
+  };
+};
+
+type DispatchEventsResponse = {
+  ok: boolean;
+  message?: string | null;
+  incidentId: string;
+  events: Array<{
+    id: number;
+    incidentId: string;
+    fetchedAt: string;
+    eventType: string;
+    status: string | null;
+    dispatch: DispatchRecord;
+  }>;
 };
 
 type IdleScreen = {
@@ -85,6 +142,7 @@ const WEATHER_POLL_INTERVAL_MS = Number(
   process.env.NEXT_PUBLIC_WEATHER_POLL_INTERVAL_MS ?? "300000",
 );
 const STATS_POLL_INTERVAL_MS = 15 * 60 * 1000;
+const HEALTH_POLL_INTERVAL_MS = 60000;
 const DISPATCH_TIME_ZONE = "America/New_York";
 const STATUS_BANNER_PERSIST_MS = 15000;
 
@@ -197,6 +255,44 @@ function formatDispatchLastActivity(dispatch: DispatchRecord) {
   }
 
   return `Last activity ${formatTime(lastActivityAt)}`;
+}
+
+function formatDurationMs(value: number | null) {
+  if (value === null || !Number.isFinite(value)) {
+    return "Unavailable";
+  }
+
+  if (value < 1000) {
+    return `${value} ms`;
+  }
+
+  return `${(value / 1000).toFixed(1)} s`;
+}
+
+function timelineEventLabel(eventType: string) {
+  switch (eventType) {
+    case "created":
+      return "Incident Created";
+    case "status_changed":
+      return "Status Changed";
+    case "updated":
+      return "Incident Updated";
+    default:
+      return eventType.replace(/_/g, " ");
+  }
+}
+
+function summarizeDispatchMessage(message: string | null) {
+  if (!message) {
+    return "No CAD notes captured.";
+  }
+
+  return (
+    message
+      .split("\n")
+      .map((line) => line.trim())
+      .find(Boolean) ?? "No CAD notes captured."
+  );
 }
 
 function weatherArtwork(summary: string) {
@@ -464,8 +560,21 @@ export function DispatchDashboard() {
   const [totalApparatusCalls, setTotalApparatusCalls] = useState(0);
   const [emsCalls, setEmsCalls] = useState(0);
   const [fireRescueCalls, setFireRescueCalls] = useState(0);
+  const [rollingWindows, setRollingWindows] = useState<StatsResponse["rollingWindows"]>(
+    [],
+  );
   const [statsMessage, setStatsMessage] = useState<string | null>(null);
   const [statsSourceLabel, setStatsSourceLabel] = useState<string | null>(null);
+  const [dispatchHealth, setDispatchHealth] = useState<DispatchHealthResponse | null>(
+    null,
+  );
+  const [dispatchHealthMessage, setDispatchHealthMessage] = useState<string | null>(
+    null,
+  );
+  const [timelineEvents, setTimelineEvents] = useState<
+    DispatchEventsResponse["events"]
+  >([]);
+  const [timelineMessage, setTimelineMessage] = useState<string | null>(null);
   const [sessionReady, setSessionReady] = useState(false);
   const [loginUnitId, setLoginUnitId] = useState("");
   const [loginPassword, setLoginPassword] = useState("");
@@ -806,8 +915,13 @@ export function DispatchDashboard() {
       setTotalApparatusCalls(0);
       setEmsCalls(0);
       setFireRescueCalls(0);
+      setRollingWindows([]);
       setStatsMessage(null);
       setStatsSourceLabel(null);
+      setDispatchHealth(null);
+      setDispatchHealthMessage(null);
+      setTimelineEvents([]);
+      setTimelineMessage(null);
       return;
     }
 
@@ -829,6 +943,7 @@ export function DispatchDashboard() {
         setTotalApparatusCalls(data.totalApparatusCalls);
         setEmsCalls(data.emsCalls);
         setFireRescueCalls(data.fireRescueCalls);
+        setRollingWindows(data.rollingWindows);
         setStatsMessage(data.message);
         setStatsSourceLabel(data.sourceLabel);
       } catch (error) {
@@ -841,6 +956,7 @@ export function DispatchDashboard() {
         setTotalApparatusCalls(0);
         setEmsCalls(0);
         setFireRescueCalls(0);
+        setRollingWindows([]);
         setStatsSourceLabel(null);
         setStatsMessage(
           error instanceof Error ? error.message : "Failed to load statistics.",
@@ -850,6 +966,58 @@ export function DispatchDashboard() {
 
     loadStats();
     const intervalId = window.setInterval(loadStats, STATS_POLL_INTERVAL_MS);
+
+    return () => {
+      active = false;
+      window.clearInterval(intervalId);
+    };
+  }, [unitId]);
+
+  useEffect(() => {
+    if (!unitId) {
+      setDispatchHealth(null);
+      setDispatchHealthMessage(null);
+      return;
+    }
+
+    let active = true;
+
+    async function loadDispatchHealth() {
+      try {
+        const response = await fetch("/api/dispatch-health", {
+          cache: "no-store",
+        });
+        const data = (await response.json()) as
+          | DispatchHealthResponse
+          | { ok?: boolean; message?: string };
+        const responseMessage = "message" in data ? data.message : null;
+
+        if (!active) {
+          return;
+        }
+
+        if (!response.ok || !("telemetry" in data)) {
+          setDispatchHealth(null);
+          setDispatchHealthMessage(responseMessage ?? "Dispatch diagnostics unavailable.");
+          return;
+        }
+
+        setDispatchHealth(data);
+        setDispatchHealthMessage(null);
+      } catch (error) {
+        if (!active) {
+          return;
+        }
+
+        setDispatchHealth(null);
+        setDispatchHealthMessage(
+          error instanceof Error ? error.message : "Dispatch diagnostics unavailable.",
+        );
+      }
+    }
+
+    void loadDispatchHealth();
+    const intervalId = window.setInterval(loadDispatchHealth, HEALTH_POLL_INTERVAL_MS);
 
     return () => {
       active = false;
@@ -876,6 +1044,56 @@ export function DispatchDashboard() {
     () => formatDurationBetween(primaryDispatch?.dispatchedAt ?? null, now),
     [primaryDispatch?.dispatchedAt, now],
   );
+  useEffect(() => {
+    if (!unitId || !primaryDispatch?.id) {
+      setTimelineEvents([]);
+      setTimelineMessage(null);
+      return;
+    }
+
+    let active = true;
+
+    async function loadTimeline() {
+      try {
+        const url = new URL("/api/dispatch-events", window.location.origin);
+        url.searchParams.set("incidentId", primaryDispatch.id);
+
+        const response = await fetch(url.toString(), { cache: "no-store" });
+        const data = (await response.json()) as
+          | DispatchEventsResponse
+          | { ok?: boolean; message?: string };
+        const responseMessage = "message" in data ? data.message : null;
+
+        if (!active) {
+          return;
+        }
+
+        if (!response.ok || !("events" in data)) {
+          setTimelineEvents([]);
+          setTimelineMessage(responseMessage ?? "Timeline unavailable.");
+          return;
+        }
+
+        setTimelineEvents(data.events);
+        setTimelineMessage(null);
+      } catch (error) {
+        if (!active) {
+          return;
+        }
+
+        setTimelineEvents([]);
+        setTimelineMessage(
+          error instanceof Error ? error.message : "Timeline unavailable.",
+        );
+      }
+    }
+
+    void loadTimeline();
+
+    return () => {
+      active = false;
+    };
+  }, [fetchedAt, primaryDispatch?.id, unitId]);
   useEffect(() => {
     if (!unitId || primaryDispatch) {
       setIdleScreenIndex(0);
@@ -913,6 +1131,10 @@ export function DispatchDashboard() {
 
     return unit.weatherRadarImageUrl;
   }, [unit, weatherRadarFrameIndex]);
+  const recentTimelineEvents = useMemo(
+    () => [...timelineEvents].slice(-6).reverse(),
+    [timelineEvents],
+  );
   const idleScreens = useMemo<IdleScreen[]>(() => {
     if (!unit) {
       return [];
@@ -1205,8 +1427,8 @@ export function DispatchDashboard() {
         title: `${statsYear} call statistics`,
         description:
           statsMessage ??
-          `Year-to-date department call volume with ${unit.displayName} apparatus totals and Fire vs EMS split.`,
-        contentVersion: `stats:${statsYear}:${totalDepartmentCalls}:${totalApparatusCalls}:${emsCalls}:${fireRescueCalls}:${statsMessage ?? ""}`,
+          `Year-to-date department call volume with ${unit.displayName} apparatus totals, plus rolling recent windows from persisted incident history.`,
+        contentVersion: `stats:${statsYear}:${totalDepartmentCalls}:${totalApparatusCalls}:${emsCalls}:${fireRescueCalls}:${rollingWindows.map((window) => `${window.days}:${window.totalDepartmentCalls}:${window.totalApparatusCalls}`).join("|")}:${statsMessage ?? ""}`,
         backgroundStyle: {
           background:
             "radial-gradient(circle at top left, rgba(255,255,255,0.08), transparent 20%), radial-gradient(circle at 82% 16%, rgba(78,219,161,0.16), transparent 18%), linear-gradient(140deg, rgba(14,56,49,1), rgba(10,32,39,0.96) 52%, rgba(8,19,27,1))",
@@ -1285,10 +1507,154 @@ export function DispatchDashboard() {
                 </div>
                 <div className="rounded-[1.5rem] border border-white/10 bg-white/6 px-5 py-5">
                   <p className="font-mono text-xs uppercase tracking-[0.22em] text-white/54">
+                    Recent Windows
+                  </p>
+                  <div className="mt-4 grid gap-3">
+                    {rollingWindows.map((window) => (
+                      <div
+                        key={window.label}
+                        className="rounded-[1.1rem] border border-white/10 bg-black/18 px-4 py-4"
+                      >
+                        <div className="flex items-start justify-between gap-4">
+                          <div>
+                            <p className="text-lg font-medium text-white">
+                              {window.label}
+                            </p>
+                            <p className="mt-1 text-sm text-white/62">
+                              {window.totalDepartmentCalls} dept. / {window.totalApparatusCalls} apparatus
+                            </p>
+                          </div>
+                          <p className="font-mono text-xs uppercase tracking-[0.18em] text-white/48">
+                            {window.fireRescueCalls} Fire · {window.emsCalls} EMS
+                          </p>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+                <div className="rounded-[1.5rem] border border-white/10 bg-white/6 px-5 py-5">
+                  <p className="font-mono text-xs uppercase tracking-[0.22em] text-white/54">
                     Source
                   </p>
                   <p className="mt-3 text-lg leading-8 text-white/78">
-                    {statsMessage ?? statsSourceLabel ?? "Stats feed not configured"}
+                    {statsMessage ??
+                      rollingWindows[0]?.sourceLabel ??
+                      statsSourceLabel ??
+                      "Stats feed not configured"}
+                  </p>
+                </div>
+              </div>
+            </div>
+          </div>
+        ),
+      },
+      {
+        id: "health",
+        label: "Diagnostics",
+        eyebrow: "System Health",
+        title: "Dispatch feed diagnostics",
+        description:
+          dispatchHealthMessage ??
+          (dispatchHealth?.telemetry.lastError ??
+            "Current poller, persistence, and shared-store status."),
+        contentVersion: `health:${dispatchHealth?.revision ?? 0}:${dispatchHealth?.snapshotFetchedAt ?? ""}:${dispatchHealth?.telemetry.lastFetchDurationMs ?? "na"}:${dispatchHealth?.telemetry.lastPersistDurationMs ?? "na"}:${dispatchHealthMessage ?? ""}`,
+        backgroundStyle: {
+          background:
+            "radial-gradient(circle at top right, rgba(255,255,255,0.08), transparent 18%), radial-gradient(circle at 14% 22%, rgba(114,163,255,0.18), transparent 20%), linear-gradient(145deg, rgba(18,25,49,1), rgba(19,40,77,0.96) 52%, rgba(11,18,35,1))",
+        },
+        artwork: (
+          <div className="pointer-events-none absolute inset-0 overflow-hidden">
+            <div className="absolute right-12 top-16 h-64 w-64 rounded-full border border-white/8" />
+            <div className="absolute right-24 top-28 h-40 w-40 rounded-full border border-sky-300/12" />
+            <div className="absolute left-12 top-24 h-px w-72 bg-white/10" />
+            <div className="absolute left-12 top-40 h-px w-96 bg-white/8" />
+            <div className="absolute bottom-18 left-16 h-52 w-52 rounded-[2rem] border border-white/6" />
+          </div>
+        ),
+        content: (
+          <div className="grid h-full content-start gap-5 xl:grid-cols-[minmax(0,1.1fr)_minmax(320px,0.9fr)]">
+            <div className="grid gap-5 md:grid-cols-2">
+              <div className="rounded-[2rem] border border-white/12 bg-white/7 px-8 py-7">
+                <p className="font-mono text-sm uppercase tracking-[0.28em] text-white/56">
+                  Last Success
+                </p>
+                <p className="mt-4 text-3xl font-semibold leading-tight text-white">
+                  {formatTime(dispatchHealth?.telemetry.lastSuccessfulFetchAt ?? null)}
+                </p>
+                <p className="mt-4 text-lg text-white/68">
+                  Latest healthy upstream refresh
+                </p>
+              </div>
+              <div className="rounded-[2rem] border border-white/12 bg-white/7 px-8 py-7">
+                <p className="font-mono text-sm uppercase tracking-[0.28em] text-white/56">
+                  Snapshot Revision
+                </p>
+                <p className="mt-4 text-7xl font-semibold tracking-[-0.06em] text-white">
+                  {dispatchHealth?.revision ?? 0}
+                </p>
+                <p className="mt-4 text-lg text-white/68">
+                  Upstream {dispatchHealth?.snapshotUpstreamStatus ?? "Unavailable"}
+                </p>
+              </div>
+              <div className="rounded-[2rem] border border-sky-300/16 bg-sky-300/8 px-8 py-7">
+                <p className="font-mono text-sm uppercase tracking-[0.28em] text-sky-50/72">
+                  Fetch Latency
+                </p>
+                <p className="mt-4 text-7xl font-semibold tracking-[-0.06em] text-white">
+                  {formatDurationMs(dispatchHealth?.telemetry.lastFetchDurationMs ?? null)}
+                </p>
+                <p className="mt-4 text-lg text-white/68">
+                  Last FirstDue request duration
+                </p>
+              </div>
+              <div className="rounded-[2rem] border border-amber-300/16 bg-amber-300/8 px-8 py-7">
+                <p className="font-mono text-sm uppercase tracking-[0.28em] text-amber-50/72">
+                  Persist Duration
+                </p>
+                <p className="mt-4 text-7xl font-semibold tracking-[-0.06em] text-white">
+                  {formatDurationMs(dispatchHealth?.telemetry.lastPersistDurationMs ?? null)}
+                </p>
+                <p className="mt-4 text-lg text-white/68">
+                  Snapshot + event write time
+                </p>
+              </div>
+            </div>
+            <div className="rounded-[2rem] border border-white/12 bg-black/18 px-8 py-8">
+              <p className="font-mono text-sm uppercase tracking-[0.28em] text-white/56">
+                Status Summary
+              </p>
+              <div className="mt-6 grid gap-4">
+                <div className="rounded-[1.5rem] border border-white/10 bg-white/6 px-5 py-5">
+                  <p className="font-mono text-xs uppercase tracking-[0.22em] text-white/54">
+                    Shared Store
+                  </p>
+                  <p className="mt-3 text-2xl font-medium text-white">
+                    {dispatchHealth?.redis.configured ? "Redis enabled" : "Process-local fallback"}
+                  </p>
+                  <p className="mt-2 text-base text-white/66">
+                    Subscriber {dispatchHealth?.redis.subscriberStatus ?? "disabled"} / feed {dispatchHealth?.redis.subscribed ? "subscribed" : "not subscribed"}
+                  </p>
+                </div>
+                <div className="rounded-[1.5rem] border border-white/10 bg-white/6 px-5 py-5">
+                  <p className="font-mono text-xs uppercase tracking-[0.22em] text-white/54">
+                    Persistence
+                  </p>
+                  <p className="mt-3 text-2xl font-medium text-white">
+                    {dispatchHealth?.database.configured ? "Postgres enabled" : "Database disabled"}
+                  </p>
+                  <p className="mt-2 text-base text-white/66">
+                    Retention {dispatchHealth?.retentionDays ?? 0} days
+                  </p>
+                </div>
+                <div className="rounded-[1.5rem] border border-white/10 bg-white/6 px-5 py-5">
+                  <p className="font-mono text-xs uppercase tracking-[0.22em] text-white/54">
+                    Last Error
+                  </p>
+                  <p className="mt-3 text-lg leading-8 text-white/78">
+                    {dispatchHealthMessage ??
+                      dispatchHealth?.telemetry.lastError ??
+                      dispatchHealth?.snapshotSourceLabel ??
+                      "No current diagnostics errors"}
                   </p>
                 </div>
               </div>
@@ -1298,8 +1664,11 @@ export function DispatchDashboard() {
       },
     ];
   }, [
+    dispatchHealth,
+    dispatchHealthMessage,
     emsCalls,
     fireRescueCalls,
+    rollingWindows,
     scheduleDate,
     scheduleEntries,
     scheduleMessage,
@@ -1439,6 +1808,11 @@ export function DispatchDashboard() {
       setScheduleDate(null);
       setScheduleEntries([]);
       setScheduleMessage(null);
+      setRollingWindows([]);
+      setDispatchHealth(null);
+      setDispatchHealthMessage(null);
+      setTimelineEvents([]);
+      setTimelineMessage(null);
       setLoginPassword("");
       setLoggingOut(false);
       seenIdsRef.current = new Set();
@@ -1534,7 +1908,7 @@ export function DispatchDashboard() {
     return (
       <main className="flex h-screen w-screen overflow-hidden">
         <section className="grid h-full w-full gap-5 bg-[linear-gradient(135deg,rgba(220,93,52,0.98),rgba(120,23,23,1))] p-7 text-white xl:grid-cols-[minmax(0,1.7fr)_380px]">
-          <div className="min-w-0">
+          <div className="min-w-0 overflow-y-auto pr-2">
             <div className="grid gap-6 xl:grid-cols-[auto_minmax(0,1fr)_auto] xl:items-start">
               <DepartmentLogo subtitle="Turnout Board" dark />
               <div className="min-w-0 xl:px-2">
@@ -1626,6 +2000,53 @@ export function DispatchDashboard() {
                 </p>
               </div>
             </div>
+
+            <div className="mt-7 rounded-[1.9rem] border border-white/16 bg-black/12 px-6 py-6">
+              <div className="flex flex-wrap items-center justify-between gap-3">
+                <p className="font-mono text-sm uppercase tracking-[0.3em] text-white/62">
+                  Incident Timeline
+                </p>
+                <p className="text-sm text-white/62">
+                  {timelineEvents.length} event{timelineEvents.length === 1 ? "" : "s"} captured
+                </p>
+              </div>
+              {timelineMessage ? (
+                <p className="mt-4 rounded-[1.1rem] border border-white/12 bg-black/12 px-4 py-3 text-sm text-white/78">
+                  {timelineMessage}
+                </p>
+              ) : null}
+              <ul className="mt-4 grid gap-3">
+                {recentTimelineEvents.length > 0 ? (
+                  recentTimelineEvents.map((event) => (
+                    <li
+                      key={event.id}
+                      className="rounded-[1.3rem] border border-white/12 bg-black/12 px-4 py-4"
+                    >
+                      <div className="flex flex-wrap items-start justify-between gap-3">
+                        <div>
+                          <p className="text-lg font-medium text-white">
+                            {timelineEventLabel(event.eventType)}
+                          </p>
+                          <p className="mt-1 text-sm text-white/62">
+                            {formatTime(event.fetchedAt)}
+                          </p>
+                        </div>
+                        <p className="font-mono text-xs uppercase tracking-[0.18em] text-white/54">
+                          {(event.status ?? event.dispatch.status ?? "unknown").toUpperCase()}
+                        </p>
+                      </div>
+                      <p className="mt-3 text-base leading-7 text-white/84">
+                        {summarizeDispatchMessage(event.dispatch.message)}
+                      </p>
+                    </li>
+                  ))
+                ) : (
+                  <li className="rounded-[1.3rem] border border-white/12 bg-black/12 px-4 py-4 text-base text-white/72">
+                    Waiting for persisted incident events for this dispatch.
+                  </li>
+                )}
+              </ul>
+            </div>
           </div>
 
           <div className="grid min-h-0 gap-4 xl:grid-rows-[auto_minmax(0,1fr)_minmax(0,1fr)]">
@@ -1639,11 +2060,40 @@ export function DispatchDashboard() {
             </div>
             <div className="min-h-0 rounded-[1.9rem] border border-white/16 bg-black/12 px-6 py-6">
               <p className="font-mono text-sm uppercase tracking-[0.3em] text-white/62">
-                Current Notes
+                Current Notes / Health
               </p>
+              <div className="mt-4 grid gap-3 md:grid-cols-2">
+                <div className="rounded-[1.1rem] border border-white/10 bg-black/14 px-4 py-4">
+                  <p className="font-mono text-xs uppercase tracking-[0.18em] text-white/50">
+                    Last Success
+                  </p>
+                  <p className="mt-2 text-lg font-medium text-white">
+                    {formatShortTime(dispatchHealth?.telemetry.lastSuccessfulFetchAt ?? null)}
+                  </p>
+                  <p className="mt-1 text-sm text-white/58">
+                    Fetch {formatDurationMs(dispatchHealth?.telemetry.lastFetchDurationMs ?? null)}
+                  </p>
+                </div>
+                <div className="rounded-[1.1rem] border border-white/10 bg-black/14 px-4 py-4">
+                  <p className="font-mono text-xs uppercase tracking-[0.18em] text-white/50">
+                    Persistence
+                  </p>
+                  <p className="mt-2 text-lg font-medium text-white">
+                    {dispatchHealth?.database.configured ? "Postgres active" : "Database off"}
+                  </p>
+                  <p className="mt-1 text-sm text-white/58">
+                    Retention {dispatchHealth?.retentionDays ?? 0} days
+                  </p>
+                </div>
+              </div>
               {unit.coverageDisplayName ? (
                 <p className="mt-4 rounded-[1.1rem] border border-amber-300/20 bg-amber-300/10 px-4 py-3 text-sm leading-6 text-amber-50/88">
                   Dispatch matching and apparatus work orders are currently following {unit.coverageDisplayName}.
+                </p>
+              ) : null}
+              {dispatchHealthMessage || dispatchHealth?.telemetry.lastError ? (
+                <p className="mt-4 rounded-[1.1rem] border border-white/12 bg-black/12 px-4 py-3 text-sm leading-6 text-white/78">
+                  {dispatchHealthMessage ?? dispatchHealth?.telemetry.lastError}
                 </p>
               ) : null}
               <ul className="mt-4 grid gap-3 text-lg text-white/84">
