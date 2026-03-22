@@ -641,6 +641,42 @@ function parseUpstreamPayload(body: string, contentType: string) {
   return body;
 }
 
+function extractUpstreamErrorMessage(payload: unknown) {
+  const dictionary = asDictionary(payload);
+
+  if (dictionary) {
+    return (
+      pickString(dictionary, ["message", "error", "detail", "title"]) ??
+      null
+    );
+  }
+
+  if (typeof payload === "string" && payload.trim()) {
+    return payload.trim().slice(0, 200);
+  }
+
+  return null;
+}
+
+function describeFetchFailure(error: unknown, config: PollConfig) {
+  if (
+    error instanceof Error &&
+    error.name === "AbortError"
+  ) {
+    return `FirstDue request timed out after ${config.apiTimeoutMs} ms. Check FIRSTDUE_API_URL, auth, and network access.`;
+  }
+
+  if (error instanceof TypeError) {
+    return "Could not reach the configured FirstDue endpoint. Check FIRSTDUE_API_URL and network access.";
+  }
+
+  if (error instanceof Error && error.message.trim()) {
+    return error.message;
+  }
+
+  return "FirstDue polling failed.";
+}
+
 export async function fetchFirstDueDispatches(): Promise<DispatchFetchResult> {
   const config = getConfig();
 
@@ -684,10 +720,22 @@ export async function fetchFirstDueDispatches(): Promise<DispatchFetchResult> {
       configured: true,
       upstreamStatus: response.status,
       dispatches,
-      message: response.ok ? null : "FirstDue returned a non-success response.",
+      message:
+        response.ok
+          ? null
+          : extractUpstreamErrorMessage(payload) ??
+            `FirstDue returned HTTP ${response.status}.`,
       sourceLabel: describeSource(config.apiUrl),
       rawPreview:
         typeof payload === "string" ? payload.slice(0, 500) : payload,
+    };
+  } catch (error) {
+    return {
+      configured: true,
+      upstreamStatus: null,
+      dispatches: [],
+      message: describeFetchFailure(error, config),
+      sourceLabel: describeSource(config.apiUrl),
     };
   } finally {
     clearTimeout(timeout);
