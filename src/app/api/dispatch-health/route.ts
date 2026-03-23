@@ -24,8 +24,22 @@ export async function GET() {
     );
   }
 
-  ensureDispatchPolling();
-  await getDispatchSnapshot();
+  try {
+    ensureDispatchPolling();
+    await getDispatchSnapshot();
 
-  return NextResponse.json(getDispatchHubHealth());
+    return NextResponse.json(getDispatchHubHealth());
+  } catch (error) {
+    const message =
+      error instanceof Error ? error.message : "Dispatch diagnostics unavailable.";
+
+    return NextResponse.json(
+      {
+        ...getDispatchHubHealth(),
+        ok: false,
+        message,
+      },
+      { status: 200 },
+    );
+  }
 }
