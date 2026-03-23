@@ -32,6 +32,7 @@ type DispatchHubTelemetry = {
   lastSuccessfulFetchAt: string | null;
   lastFetchDurationMs: number | null;
   lastPersistDurationMs: number | null;
+  lastPersistError: string | null;
   lastRefreshDurationMs: number | null;
   lastError: string | null;
   lastResultMessage: string | null;
@@ -147,6 +148,7 @@ function getDispatchHubState(): DispatchHubState {
         lastSuccessfulFetchAt: null,
         lastFetchDurationMs: null,
         lastPersistDurationMs: null,
+        lastPersistError: null,
         lastRefreshDurationMs: null,
         lastError: null,
         lastResultMessage: null,
@@ -370,8 +372,17 @@ async function persistRedisSnapshot(
     };
 
     applySnapshot(state, snapshot, true);
-    await persistDispatchSnapshot(snapshot);
-    state.telemetry.lastPersistDurationMs = Date.now() - persistStartedAt;
+    try {
+      await persistDispatchSnapshot(snapshot);
+      state.telemetry.lastPersistDurationMs = Date.now() - persistStartedAt;
+      state.telemetry.lastPersistError = null;
+    } catch (error) {
+      const message =
+        error instanceof Error ? error.message : "Dispatch persistence failed.";
+      state.telemetry.lastPersistDurationMs = null;
+      state.telemetry.lastPersistError = message;
+      console.error("[dispatch-hub] persist failed", message);
+    }
     return snapshot;
   }
 
@@ -398,8 +409,17 @@ async function persistRedisSnapshot(
   await redis.client.set(redisSnapshotKey(), serializedSnapshot);
   await redis.publisher.publish(redisChannelName(), serializedSnapshot);
   applySnapshot(state, snapshot, true);
-  await persistDispatchSnapshot(snapshot);
-  state.telemetry.lastPersistDurationMs = Date.now() - persistStartedAt;
+  try {
+    await persistDispatchSnapshot(snapshot);
+    state.telemetry.lastPersistDurationMs = Date.now() - persistStartedAt;
+    state.telemetry.lastPersistError = null;
+  } catch (error) {
+    const message =
+      error instanceof Error ? error.message : "Dispatch persistence failed.";
+    state.telemetry.lastPersistDurationMs = null;
+    state.telemetry.lastPersistError = message;
+    console.error("[dispatch-hub] persist failed", message);
+  }
 
   return snapshot;
 }
@@ -426,8 +446,9 @@ async function fetchAndPersistSnapshot(state: DispatchHubState) {
   state.telemetry.lastRefreshDurationMs = Date.now() - refreshStartedAt;
   state.telemetry.lastUpstreamStatus = result.upstreamStatus;
   state.telemetry.lastResultMessage = result.message;
-  state.telemetry.lastError =
-    result.upstreamStatus && result.upstreamStatus >= 200 && result.upstreamStatus < 300
+  state.telemetry.lastError = state.telemetry.lastPersistError
+    ? state.telemetry.lastPersistError
+    : result.upstreamStatus && result.upstreamStatus >= 200 && result.upstreamStatus < 300
       ? null
       : result.message;
 

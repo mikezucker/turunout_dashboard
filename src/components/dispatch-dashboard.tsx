@@ -101,6 +101,7 @@ type DispatchHealthResponse = {
     lastSuccessfulFetchAt: string | null;
     lastFetchDurationMs: number | null;
     lastPersistDurationMs: number | null;
+    lastPersistError: string | null;
     lastRefreshDurationMs: number | null;
     lastError: string | null;
     lastResultMessage: string | null;
