@@ -1342,7 +1342,7 @@ export function DispatchDashboard() {
         id: "work-orders",
         label: "Work Orders",
         eyebrow: "Maintenance Queue",
-        title: `${unit.displayName} apparatus work orders`,
+        title: `${unit.displayName} Apparatus Work Orders`,
         description: `${
           workOrders.length
         } item${workOrders.length === 1 ? "" : "s"} currently open for this unit.${
@@ -1559,8 +1559,8 @@ export function DispatchDashboard() {
         label: "Schedule",
         eyebrow: "Current Schedule",
         title: scheduleDate
-          ? `Daily staffing for ${formatDateOnly(`${scheduleDate}T12:00:00`)}` 
-          : "Daily staffing schedule",
+          ? `Daily Staffing for ${formatDateOnly(`${scheduleDate}T12:00:00`)}` 
+          : "Daily Staffing Schedule",
         description:
           scheduleMessage ??
           "Current staffed assignments from the FirstDue daily schedule across all stations.",
@@ -1608,7 +1608,7 @@ export function DispatchDashboard() {
         id: "stats",
         label: "Stats",
         eyebrow: "Department Activity",
-        title: `${statsYear} call statistics`,
+        title: `${statsYear} Call Statistics`,
         description:
           statsMessage ??
           `Year-to-date department call volume with ${unit.displayName} apparatus totals, plus rolling recent windows from persisted incident history.`,
@@ -2307,7 +2307,7 @@ export function DispatchDashboard() {
                   <p className="font-mono text-xs uppercase tracking-[0.24em] text-white/62">
                     Dispatch Time
                   </p>
-                  <p className="mt-2 text-[1.75rem] font-medium leading-tight">
+                  <p className="mt-2 text-[3.0rem] font-medium leading-tight">
                     {formatTime(primaryDispatch.dispatchedAt)}
                   </p>
                 </div>
