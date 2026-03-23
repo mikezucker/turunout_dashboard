@@ -37,6 +37,7 @@ export type DispatchFetchResult = {
 type Dictionary = Record<string, unknown>;
 
 const DISPATCH_TIME_ZONE = "America/New_York";
+const DEFAULT_LIVE_PAGE_SCAN_LIMIT = 5;
 
 const CANDIDATE_ARRAY_PATHS = [
   ["dispatches"],
@@ -93,6 +94,17 @@ const ENROUTE_KEYS = [
   "unitEnrouteAt",
   "respondingAt",
 ];
+
+function getLivePageScanLimit() {
+  const rawValue =
+    process.env.FIRSTDUE_LIVE_PAGE_SCAN_LIMIT ??
+    String(DEFAULT_LIVE_PAGE_SCAN_LIMIT);
+  const parsedValue = Number(rawValue);
+
+  return Number.isFinite(parsedValue) && parsedValue > 0
+    ? Math.floor(parsedValue)
+    : DEFAULT_LIVE_PAGE_SCAN_LIMIT;
+}
 
 function getConfig(): PollConfig {
   const auth = getFirstDueAuthConfig();
@@ -210,6 +222,26 @@ function inferArray(payload: unknown): unknown[] {
   }
 
   return [];
+}
+
+function parseLastPageFromLinkHeader(linkHeader: string | null) {
+  if (!linkHeader) {
+    return 1;
+  }
+
+  const lastMatch = linkHeader.match(/<[^>]*[?&]page=(\d+)[^>]*>;\s*rel="last"/i);
+
+  if (lastMatch) {
+    return Number(lastMatch[1]);
+  }
+
+  return linkHeader.includes('rel="next"') ? 2 : 1;
+}
+
+function buildDispatchPageUrl(baseUrl: string, page: number) {
+  const url = new URL(baseUrl);
+  url.searchParams.set("page", String(page));
+  return url.toString();
 }
 
 function parseArrayOfStrings(value: unknown) {
@@ -414,6 +446,47 @@ export function normalizeDispatchPayload(payload: unknown): DispatchRecord[] {
     .filter((record): record is DispatchRecord => record !== null);
 }
 
+function isOpenDispatchStatus(status: string | null) {
+  return status?.trim().toLowerCase() === "open";
+}
+
+function dedupeDispatches(dispatches: DispatchRecord[]) {
+  const seenIds = new Set<string>();
+
+  return dispatches.filter((dispatch) => {
+    if (seenIds.has(dispatch.id)) {
+      return false;
+    }
+
+    seenIds.add(dispatch.id);
+    return true;
+  });
+}
+
+async function fetchDispatchPage(
+  url: string,
+  method: string,
+  headers: Headers,
+  signal: AbortSignal,
+) {
+  const response = await fetch(url, {
+    method,
+    headers,
+    cache: "no-store",
+    signal,
+  });
+
+  const contentType = response.headers.get("content-type") ?? "";
+  const body = await response.text();
+  const payload = parseUpstreamPayload(body, contentType);
+
+  return {
+    response,
+    payload,
+    dispatches: normalizeDispatchPayload(payload),
+  };
+}
+
 
 function normalizeUnitToken(value: string) {
   return value.trim().toLowerCase().replace(/[^a-z0-9]/g, "");
@@ -577,18 +650,51 @@ export async function fetchFirstDueDispatches(): Promise<DispatchFetchResult> {
       headers.set(config.apiHeaderName, config.apiHeaderValue);
     }
 
-    const response = await fetch(apiUrl, {
-      method: config.apiMethod,
+    const firstPageUrl = buildDispatchPageUrl(apiUrl, 1);
+    const firstPage = await fetchDispatchPage(
+      firstPageUrl,
+      config.apiMethod,
       headers,
-      cache: "no-store",
-      signal: controller.signal,
-    });
+      controller.signal,
+    );
+    const allDispatches = [...firstPage.dispatches];
+    const lastPage = parseLastPageFromLinkHeader(
+      firstPage.response.headers.get("link"),
+    );
+    const maxPages = Math.min(lastPage, getLivePageScanLimit());
+    let supplementalPageFailure: string | null = null;
 
-    const contentType = response.headers.get("content-type") ?? "";
-    const body = await response.text();
-    const payload = parseUpstreamPayload(body, contentType);
+    for (let page = 2; page <= maxPages; page += 1) {
+      try {
+        const currentPage = await fetchDispatchPage(
+          buildDispatchPageUrl(apiUrl, page),
+          config.apiMethod,
+          headers,
+          controller.signal,
+        );
 
-    const dispatches = sortDispatchesNewestFirst(normalizeDispatchPayload(payload));
+        if (!currentPage.response.ok) {
+          supplementalPageFailure = `Additional dispatch page ${page} returned HTTP ${currentPage.response.status}.`;
+          break;
+        }
+
+        allDispatches.push(...currentPage.dispatches);
+
+        if (!currentPage.dispatches.some((dispatch) => isOpenDispatchStatus(dispatch.status))) {
+          break;
+        }
+      } catch (error) {
+        supplementalPageFailure =
+          error instanceof Error
+            ? `Additional dispatch page ${page} failed: ${error.message}`
+            : `Additional dispatch page ${page} failed.`;
+        break;
+      }
+    }
+
+    const dispatches = sortDispatchesNewestFirst(dedupeDispatches(allDispatches));
+    const response = firstPage.response;
+    const payload = firstPage.payload;
 
     return {
       configured: true,
@@ -596,7 +702,7 @@ export async function fetchFirstDueDispatches(): Promise<DispatchFetchResult> {
       dispatches,
       message:
         response.ok
-          ? null
+          ? supplementalPageFailure
           : extractUpstreamErrorMessage(payload) ??
             `FirstDue returned HTTP ${response.status}.`,
       sourceLabel: describeSource(apiUrl),
