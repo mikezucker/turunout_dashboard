@@ -234,6 +234,61 @@ function joinMessages(...parts: Array<string | null>) {
   return filtered.length > 0 ? filtered.join(" ") : null;
 }
 
+function daysSinceIso(sinceIso: string, now = new Date()) {
+  const sinceMs = Date.parse(sinceIso);
+
+  if (!Number.isFinite(sinceMs)) {
+    return Number.POSITIVE_INFINITY;
+  }
+
+  return Math.ceil((now.getTime() - sinceMs) / (24 * 60 * 60 * 1000));
+}
+
+async function fetchPersistedYearStatsFallback(
+  unit: UnitMatcher | null,
+  year: number,
+  sinceIso: string,
+  rollingWindows: DispatchStatsResult["rollingWindows"],
+  rollingWindowsMessage: string | null,
+  liveFailureMessage: string,
+): Promise<DispatchStatsResult | null> {
+  if (!isDatabaseConfigured()) {
+    return null;
+  }
+
+  const retentionDays = getDispatchRetentionDays();
+  const requiredRetentionDays = daysSinceIso(sinceIso);
+
+  if (retentionDays < requiredRetentionDays) {
+    return null;
+  }
+
+  try {
+    const incidents = await getPersistedIncidentsSince(sinceIso);
+    const classified = classifyCalls(incidents);
+    const sourceLabel = `Persisted incident history (${retentionDays}-day retention)`;
+
+    return availableStatsResult({
+      year,
+      sourceLabel,
+      message: joinMessages(
+        rollingWindowsMessage,
+        `${liveFailureMessage} Showing persisted year-to-date totals.`,
+      ),
+      rollingWindows,
+      totalDepartmentCalls: incidents.length,
+      totalApparatusCalls: filterDispatchesForUnit(incidents, unit).length,
+      emsCalls: classified.emsCalls,
+      fireRescueCalls: classified.fireRescueCalls,
+    });
+  } catch (error) {
+    const reason =
+      error instanceof Error ? error.message : "Persisted stats fallback failed.";
+    console.error("[stats] persisted year fallback unavailable", reason);
+    return null;
+  }
+}
+
 async function fetchRollingDispatchWindows(unit: UnitMatcher | null) {
   if (!isDatabaseConfigured()) {
     return {
@@ -449,6 +504,19 @@ export async function fetchDispatchStats(
     const reason =
       error instanceof Error ? error.message : "Dispatch stats unavailable.";
     console.error("[stats] live totals unavailable", reason);
+
+    const persistedFallback = await fetchPersistedYearStatsFallback(
+      unit,
+      year,
+      sinceIso,
+      rollingWindows,
+      rollingWindowsMessage,
+      reason,
+    );
+
+    if (persistedFallback) {
+      return persistedFallback;
+    }
 
     return unavailableStatsResult({
       year,
