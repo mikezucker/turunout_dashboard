@@ -1592,8 +1592,8 @@ export function DispatchDashboard() {
                   {entry.timeRange}
                 </p>
                 <div>
-                  <p className="text-[2.2rem] font-medium leading-tight text-white">{entry.title}</p>
-                  <p className="mt-2 text-[1.35rem] text-white/72">
+                  <p className="text-[2.55rem] font-medium leading-tight text-white">{entry.title}</p>
+                  <p className="mt-2 text-[1.6rem] text-white/76">
                     {entry.station ? `${entry.station} / ` : ""}
                     {entry.staffing.length > 0
                       ? entry.staffing.join(" • ")
