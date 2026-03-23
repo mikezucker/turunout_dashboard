@@ -7,6 +7,7 @@ import {
 
 const globalForDb = globalThis as typeof globalThis & {
   __turnoutDbPool?: Pool | null;
+  __turnoutDbBootstrapPool?: Pool | null;
   __turnoutDbSchemaReady?: Promise<void> | null;
 };
 
@@ -35,6 +36,28 @@ function getDatabaseCandidate() {
 
 function getDatabaseUrl() {
   return getDatabaseCandidate()?.value ?? null;
+}
+
+function getBootstrapDatabaseCandidate() {
+  const candidates = [
+    ["POSTGRES_URL_NON_POOLING", process.env.POSTGRES_URL_NON_POOLING],
+    ["DATABASE_URL", process.env.DATABASE_URL],
+    ["POSTGRES_URL", process.env.POSTGRES_URL],
+  ] satisfies Array<[string, string | undefined]>;
+
+  for (const [name, candidate] of candidates) {
+    const value = candidate?.trim();
+
+    if (value) {
+      return { name, value } satisfies DatabaseCandidate;
+    }
+  }
+
+  return null;
+}
+
+function getBootstrapDatabaseUrl() {
+  return getBootstrapDatabaseCandidate()?.value ?? null;
 }
 
 export function describeDatabaseTarget() {
@@ -78,6 +101,29 @@ function getSanitizedDatabaseUrl() {
   }
 }
 
+function getSanitizedBootstrapDatabaseUrl() {
+  const databaseUrl = getBootstrapDatabaseUrl();
+
+  if (!databaseUrl) {
+    return null;
+  }
+
+  try {
+    const url = new URL(databaseUrl);
+
+    // node-postgres can let SSL query params from the connection string
+    // override the explicit ssl config object passed to Pool.
+    url.searchParams.delete("sslmode");
+    url.searchParams.delete("sslcert");
+    url.searchParams.delete("sslkey");
+    url.searchParams.delete("sslrootcert");
+
+    return url.toString();
+  } catch {
+    return databaseUrl;
+  }
+}
+
 export function isDatabaseConfigured() {
   return getDatabaseUrl() !== null;
 }
@@ -98,6 +144,24 @@ function getPool() {
   }
 
   return globalForDb.__turnoutDbPool;
+}
+
+function getBootstrapPool() {
+  if (!getBootstrapDatabaseUrl()) {
+    return null;
+  }
+
+  if (!globalForDb.__turnoutDbBootstrapPool) {
+    globalForDb.__turnoutDbBootstrapPool = new Pool({
+      connectionString: getSanitizedBootstrapDatabaseUrl() as string,
+      max: 1,
+      ssl: {
+        rejectUnauthorized: false,
+      },
+    });
+  }
+
+  return globalForDb.__turnoutDbBootstrapPool;
 }
 
 export async function query<T extends QueryResultRow = QueryResultRow>(
@@ -140,7 +204,7 @@ export async function withTransaction<T>(
 }
 
 export async function ensureDatabaseSchema() {
-  const pool = getPool();
+  const pool = getBootstrapPool() ?? getPool();
 
   if (!pool) {
     return;
@@ -202,9 +266,15 @@ export async function ensureDatabaseSchema() {
       `);
     })().catch((error) => {
       globalForDb.__turnoutDbSchemaReady = null;
+      const bootstrapTarget =
+        getBootstrapDatabaseCandidate()?.name ??
+        getDatabaseCandidate()?.name ??
+        "DATABASE_URL";
       const message =
         error instanceof Error ? error.message : "Unknown database error";
-      throw new Error(`Database bootstrap failed (${describeDatabaseTarget()}): ${message}`);
+      throw new Error(
+        `Database bootstrap failed (${bootstrapTarget} / ${describeDatabaseTarget()}): ${message}`,
+      );
     });
   }
 
