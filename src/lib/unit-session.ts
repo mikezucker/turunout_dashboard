@@ -8,6 +8,7 @@ export type UnitProfile = {
   station: string;
   apparatus: string;
   apparatusApiId?: string;
+  dispatchAliases?: string[];
   coverageUnitId?: string;
   radioName: string;
   notes: string[];
@@ -42,6 +43,7 @@ function defaultUnits(): UnitProfile[] {
       station: "Station 1",
       apparatus: "Engine",
       apparatusApiId: undefined,
+      dispatchAliases: [],
       radioName: "E1",
       notes: ["Primary first-due engine", "Confirm MDT and portable radios"],
       assignments: ["EMS responses", "Structure fires", "Automatic aid"],
@@ -57,6 +59,7 @@ function defaultUnits(): UnitProfile[] {
       station: "Station 2",
       apparatus: "Truck",
       apparatusApiId: undefined,
+      dispatchAliases: [],
       radioName: "T1",
       notes: ["Check saws and irons", "Review target hazards before shift"],
       assignments: ["Rescue", "Ventilation", "Special service calls"],
@@ -115,6 +118,11 @@ export function getUnitProfiles(): UnitProfile[] {
             candidate.apparatusApiId.trim()
               ? candidate.apparatusApiId
               : undefined,
+          dispatchAliases: Array.isArray(candidate.dispatchAliases)
+            ? candidate.dispatchAliases.filter(
+                (alias): alias is string => typeof alias === "string" && alias.trim().length > 0,
+              )
+            : [],
           coverageUnitId:
             typeof candidate.coverageUnitId === "string" &&
             candidate.coverageUnitId.trim()
@@ -195,6 +203,36 @@ export function getEffectiveApparatusApiId(unit: UnitProfile | null) {
   return coverageUnit?.apparatusApiId ?? unit?.apparatusApiId;
 }
 
+function deriveDispatchAliases(
+  candidate: Pick<UnitProfile, "id" | "apparatus" | "radioName">,
+) {
+  const aliases = new Set<string>();
+  const apparatus = candidate.apparatus.trim().toLowerCase();
+  const radioName = candidate.radioName.trim().toLowerCase();
+  const id = candidate.id.trim().toLowerCase();
+  const digits = radioName.match(/\d+/)?.[0] ?? id.match(/\d+/)?.[0] ?? "";
+
+  if (!digits) {
+    return [];
+  }
+
+  const shorthandByApparatus: Record<string, string[]> = {
+    engine: ["eng"],
+    truck: ["trk", "truck"],
+    ladder: ["lad", "ldr"],
+    rescue: ["res"],
+    squad: ["sqd"],
+    tanker: ["tnk"],
+    brush: ["brs"],
+  };
+
+  for (const shorthand of shorthandByApparatus[apparatus] ?? []) {
+    aliases.add(`${shorthand}${digits}`);
+  }
+
+  return [...aliases];
+}
+
 export function getDispatchAliasTokens(unit: UnitProfile | null) {
   const aliases = new Set<string>();
 
@@ -216,6 +254,14 @@ export function getDispatchAliasTokens(unit: UnitProfile | null) {
 
     if (candidate.apparatusApiId) {
       aliases.add(candidate.apparatusApiId);
+    }
+
+    for (const alias of candidate.dispatchAliases ?? []) {
+      aliases.add(alias);
+    }
+
+    for (const alias of deriveDispatchAliases(candidate)) {
+      aliases.add(alias);
     }
 
     aliases.add(`${candidate.apparatus} ${candidate.id}`);
