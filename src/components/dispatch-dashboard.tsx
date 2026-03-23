@@ -1352,7 +1352,7 @@ export function DispatchDashboard() {
         scrollable: true,
         backgroundStyle: {
           background:
-            "radial-gradient(circle at top left, rgba(255,206,138,0.18), transparent 28%), linear-gradient(135deg, rgba(74,47,24,0.98), rgba(28,20,14,1))",
+            "radial-gradient(circle at top left, rgba(255,215,160,0.28), transparent 30%), linear-gradient(135deg, rgba(118,76,39,0.98), rgba(56,37,24,0.96))",
         },
         artwork: (
           <div className="pointer-events-none absolute inset-0 overflow-hidden">
@@ -1394,7 +1394,7 @@ export function DispatchDashboard() {
                 )}
               </ul>
             </div>
-            <div className="self-start rounded-[2rem] border border-white/12 bg-black/18 px-8 py-8">
+            <div className="self-start rounded-[2rem] border border-white/16 bg-white/10 px-8 py-8">
               <p className="font-mono text-sm uppercase tracking-[0.28em] text-white/56">
                 Queue Status
               </p>
@@ -1421,8 +1421,8 @@ export function DispatchDashboard() {
         backgroundStyle: {
           background:
             flashingWeatherAlert
-              ? "radial-gradient(circle at 18% 20%, rgba(255,255,255,0.16), transparent 16%), radial-gradient(circle at 80% 18%, rgba(255,120,120,0.24), transparent 18%), radial-gradient(circle at 70% 78%, rgba(255,80,80,0.18), transparent 24%), linear-gradient(145deg, rgba(90,12,18,1), rgba(139,17,28,0.96) 55%, rgba(58,8,14,1))"
-              : "radial-gradient(circle at 18% 20%, rgba(255,255,255,0.2), transparent 16%), radial-gradient(circle at 80% 18%, rgba(159,216,255,0.24), transparent 18%), radial-gradient(circle at 70% 78%, rgba(83,185,255,0.18), transparent 24%), linear-gradient(145deg, rgba(13,66,94,1), rgba(22,109,126,0.94) 55%, rgba(8,42,64,1))",
+              ? "radial-gradient(circle at 18% 20%, rgba(255,255,255,0.22), transparent 16%), radial-gradient(circle at 80% 18%, rgba(255,145,145,0.3), transparent 18%), radial-gradient(circle at 70% 78%, rgba(255,110,110,0.22), transparent 24%), linear-gradient(145deg, rgba(136,30,36,0.98), rgba(178,38,44,0.94) 55%, rgba(90,18,24,0.96))"
+              : "radial-gradient(circle at 18% 20%, rgba(255,255,255,0.24), transparent 16%), radial-gradient(circle at 80% 18%, rgba(184,228,255,0.3), transparent 18%), radial-gradient(circle at 70% 78%, rgba(108,205,255,0.24), transparent 24%), linear-gradient(145deg, rgba(27,98,132,0.98), rgba(42,144,166,0.94) 55%, rgba(17,70,98,0.96))",
         },
         artwork: (
           <div className="pointer-events-none absolute inset-0 overflow-hidden">
@@ -1456,7 +1456,7 @@ export function DispatchDashboard() {
                   flashingWeatherAlert ? "mt-5" : ""
                 }`}
               >
-                <div className="flex flex-col gap-4 rounded-[1.6rem] border border-white/12 bg-black/16 px-6 py-5 md:flex-row md:items-start md:justify-between">
+                <div className="flex flex-col gap-4 rounded-[1.6rem] border border-white/16 bg-white/10 px-6 py-5 md:flex-row md:items-start md:justify-between">
                   <div>
                     <p className="font-mono text-sm uppercase tracking-[0.28em] text-white/58">
                       Current Weather
@@ -1492,7 +1492,7 @@ export function DispatchDashboard() {
                 {weatherFactors.map((factor) => (
                   <div
                     key={factor.label}
-                    className={`rounded-[1.4rem] border border-white/12 bg-black/16 px-5 py-4 ${
+                    className={`rounded-[1.4rem] border border-white/16 bg-white/10 px-5 py-4 ${
                       factor.label === "Alerts" && flashingWeatherAlert
                         ? "animate-pulse border-red-300/55 bg-red-500/26 shadow-[0_0_30px_rgba(248,113,113,0.16)]"
                         : factor.className
@@ -1515,14 +1515,14 @@ export function DispatchDashboard() {
                 ))}
               </ul>
             </div>
-            <div className="min-h-0 self-start rounded-[2rem] border border-white/12 bg-black/14 px-7 py-7">
+            <div className="min-h-0 self-start rounded-[2rem] border border-white/16 bg-white/10 px-7 py-7">
               <div className="flex items-center justify-between gap-4">
                 <p className="font-mono text-sm uppercase tracking-[0.28em] text-white/56">
                   Radar
                 </p>
                 <p className="text-sm text-white/60">Centered on Morris Township</p>
               </div>
-              <div className="mt-5 overflow-hidden rounded-[1.7rem] border border-white/12 bg-black/24">
+              <div className="mt-5 overflow-hidden rounded-[1.7rem] border border-white/16 bg-white/10">
                 {activeWeatherRadarImageUrl ? (
                   <a
                     href={unit.weatherRadarPageUrl ?? activeWeatherRadarImageUrl}
@@ -1568,7 +1568,7 @@ export function DispatchDashboard() {
         scrollable: true,
         backgroundStyle: {
           background:
-            "radial-gradient(circle at top right, rgba(255,255,255,0.08), transparent 18%), linear-gradient(135deg, rgba(31,24,58,1), rgba(17,42,86,0.96) 58%, rgba(10,22,46,1))",
+            "radial-gradient(circle at top right, rgba(255,255,255,0.14), transparent 18%), linear-gradient(135deg, rgba(52,44,92,0.98), rgba(33,67,128,0.94) 58%, rgba(21,38,79,0.96))",
         },
         artwork: (
           <div className="pointer-events-none absolute inset-0 overflow-hidden">
@@ -1615,7 +1615,7 @@ export function DispatchDashboard() {
         contentVersion: `stats:${statsYear}:${totalDepartmentCalls}:${totalApparatusCalls}:${emsCalls}:${fireRescueCalls}:${rollingWindows.map((window) => `${window.days}:${window.totalDepartmentCalls}:${window.totalApparatusCalls}`).join("|")}:${statsMessage ?? ""}`,
         backgroundStyle: {
           background:
-            "radial-gradient(circle at top left, rgba(255,255,255,0.08), transparent 20%), radial-gradient(circle at 82% 16%, rgba(78,219,161,0.16), transparent 18%), linear-gradient(140deg, rgba(14,56,49,1), rgba(10,32,39,0.96) 52%, rgba(8,19,27,1))",
+            "radial-gradient(circle at top left, rgba(255,255,255,0.14), transparent 20%), radial-gradient(circle at 82% 16%, rgba(102,232,180,0.22), transparent 18%), linear-gradient(140deg, rgba(25,92,82,0.98), rgba(19,54,63,0.94) 52%, rgba(15,33,41,0.96))",
         },
         artwork: (
           <div className="pointer-events-none absolute inset-0 overflow-hidden">
@@ -1666,7 +1666,7 @@ export function DispatchDashboard() {
                 <p className="mt-4 text-xl text-white/68">Department EMS incidents</p>
               </div>
             </div>
-            <div className="self-start rounded-[2rem] border border-white/12 bg-black/18 px-8 py-8">
+            <div className="self-start rounded-[2rem] border border-white/16 bg-white/10 px-8 py-8">
               <p className="font-mono text-sm uppercase tracking-[0.28em] text-white/56">
                 Stats Summary
               </p>
@@ -1701,7 +1701,7 @@ export function DispatchDashboard() {
                     {rollingWindows.map((window) => (
                       <div
                         key={window.label}
-                        className="rounded-[1.1rem] border border-white/10 bg-black/18 px-4 py-4"
+                        className="rounded-[1.1rem] border border-white/14 bg-white/8 px-4 py-4"
                       >
                         <div className="flex items-start justify-between gap-4">
                           <div>
@@ -1748,7 +1748,7 @@ export function DispatchDashboard() {
         contentVersion: `health:${dispatchHealth?.revision ?? 0}:${dispatchHealth?.snapshotFetchedAt ?? ""}:${dispatchHealth?.telemetry.lastFetchDurationMs ?? "na"}:${dispatchHealth?.telemetry.lastPersistDurationMs ?? "na"}:${dispatchHealthMessage ?? ""}`,
         backgroundStyle: {
           background:
-            "radial-gradient(circle at top right, rgba(255,255,255,0.08), transparent 18%), radial-gradient(circle at 14% 22%, rgba(114,163,255,0.18), transparent 20%), linear-gradient(145deg, rgba(18,25,49,1), rgba(19,40,77,0.96) 52%, rgba(11,18,35,1))",
+            "radial-gradient(circle at top right, rgba(255,255,255,0.14), transparent 18%), radial-gradient(circle at 14% 22%, rgba(140,184,255,0.24), transparent 20%), linear-gradient(145deg, rgba(34,46,84,0.98), rgba(36,69,122,0.94) 52%, rgba(21,31,61,0.96))",
         },
         artwork: (
           <div className="pointer-events-none absolute inset-0 overflow-hidden">
@@ -1807,7 +1807,7 @@ export function DispatchDashboard() {
                 </p>
               </div>
             </div>
-            <div className="rounded-[2rem] border border-white/12 bg-black/18 px-8 py-8 xl:col-start-3 xl:row-span-2">
+            <div className="rounded-[2rem] border border-white/16 bg-white/10 px-8 py-8 xl:col-start-3 xl:row-span-2">
               <p className="font-mono text-sm uppercase tracking-[0.28em] text-white/56">
                 Status Summary
               </p>
@@ -2158,7 +2158,7 @@ export function DispatchDashboard() {
   if (primaryDispatch) {
     return (
       <main className="flex h-screen w-screen overflow-hidden">
-        <section className="grid h-full w-full gap-4 bg-[linear-gradient(135deg,rgba(220,93,52,0.98),rgba(120,23,23,1))] p-6 text-white xl:grid-cols-[minmax(0,1.72fr)_360px]">
+        <section className="grid h-full w-full gap-4 bg-[linear-gradient(135deg,rgba(235,121,76,0.98),rgba(162,44,44,0.96))] p-6 text-white xl:grid-cols-[minmax(0,1.72fr)_360px]">
           <div className="min-w-0 pr-2">
             <div className="grid gap-4 xl:grid-cols-[auto_minmax(0,1fr)_auto] xl:items-start">
               <DepartmentLogo subtitle="Turnout Board" dark />
@@ -2198,7 +2198,7 @@ export function DispatchDashboard() {
               </div>
             </div>
             <div className="mt-4 grid gap-4 xl:grid-cols-[minmax(0,1.04fr)_minmax(320px,0.96fr)] xl:items-start">
-              <div className="rounded-[1.7rem] border border-white/16 bg-black/12 px-5 py-5 xl:min-h-[16rem]">
+              <div className="rounded-[1.7rem] border border-white/18 bg-white/10 px-5 py-5 xl:min-h-[16rem]">
                 <div className="flex flex-wrap items-center justify-between gap-3">
                   <p className="font-mono text-sm uppercase tracking-[0.3em] text-white/62">
                     Incident Timeline
@@ -2208,7 +2208,7 @@ export function DispatchDashboard() {
                   </p>
                 </div>
                 {timelineMessage ? (
-                  <p className="mt-4 rounded-[1.1rem] border border-white/12 bg-black/12 px-4 py-3 text-sm text-white/78">
+                  <p className="mt-4 rounded-[1.1rem] border border-white/14 bg-white/8 px-4 py-3 text-sm text-white/84">
                     {timelineMessage}
                   </p>
                 ) : null}
@@ -2224,7 +2224,7 @@ export function DispatchDashboard() {
                         return (
                           <li
                             key={event.id}
-                            className={`rounded-[1.3rem] border bg-black/12 px-4 py-4 ${tone.border}`}
+                            className={`rounded-[1.3rem] border bg-white/8 px-4 py-4 ${tone.border}`}
                           >
                             <div className="flex flex-wrap items-start justify-between gap-3">
                               <div className="flex items-start gap-3">
@@ -2262,7 +2262,7 @@ export function DispatchDashboard() {
                         );
                       })
                     ) : (
-                      <li className="rounded-[1.3rem] border border-white/12 bg-black/12 px-4 py-4 text-base text-white/72">
+                      <li className="rounded-[1.3rem] border border-white/14 bg-white/8 px-4 py-4 text-base text-white/80">
                         Waiting for persisted incident events for this dispatch.
                       </li>
                     )}
@@ -2271,7 +2271,7 @@ export function DispatchDashboard() {
               </div>
 
               <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-2">
-                <div className="rounded-[1.4rem] border border-white/15 bg-black/12 p-4">
+                <div className="rounded-[1.4rem] border border-white/18 bg-white/10 p-4">
                   <p className="font-mono text-xs uppercase tracking-[0.24em] text-white/62">
                     Incident
                   </p>
@@ -2282,7 +2282,7 @@ export function DispatchDashboard() {
                     Priority {dispatchPriorityLabel(primaryDispatch, now)}
                   </p>
                 </div>
-                <div className="rounded-[1.4rem] border border-white/15 bg-black/12 p-4">
+                <div className="rounded-[1.4rem] border border-white/18 bg-white/10 p-4">
                   <p className="font-mono text-xs uppercase tracking-[0.24em] text-white/62">
                     Assigned Units
                   </p>
@@ -2290,7 +2290,7 @@ export function DispatchDashboard() {
                     {primaryDispatch.unit ?? "Unassigned"}
                   </p>
                 </div>
-                <div className="rounded-[1.4rem] border border-white/15 bg-black/12 p-4">
+                <div className="rounded-[1.4rem] border border-white/18 bg-white/10 p-4">
                   <p className="font-mono text-xs uppercase tracking-[0.24em] text-white/62">
                     Status
                   </p>
@@ -2303,7 +2303,7 @@ export function DispatchDashboard() {
                       : formatDispatchLastActivity(primaryDispatch)}
                   </p>
                 </div>
-                <div className="rounded-[1.4rem] border border-white/15 bg-black/12 p-4">
+                <div className="rounded-[1.4rem] border border-white/18 bg-white/10 p-4">
                   <p className="font-mono text-xs uppercase tracking-[0.24em] text-white/62">
                     Dispatch Time
                   </p>
@@ -2311,7 +2311,7 @@ export function DispatchDashboard() {
                     {formatTime(primaryDispatch.dispatchedAt)}
                   </p>
                 </div>
-                <div className="rounded-[1.4rem] border border-white/15 bg-black/12 p-4">
+                <div className="rounded-[1.4rem] border border-white/18 bg-white/10 p-4">
                   <p className="font-mono text-xs uppercase tracking-[0.24em] text-white/62">
                     Feed
                   </p>
@@ -2319,7 +2319,7 @@ export function DispatchDashboard() {
                     {sourceLabel ?? "Not connected"}
                   </p>
                 </div>
-                <div className="rounded-[1.4rem] border border-white/15 bg-black/12 p-4">
+                <div className="rounded-[1.4rem] border border-white/18 bg-white/10 p-4">
                   <p className="font-mono text-xs uppercase tracking-[0.24em] text-white/62">
                     Updated
                   </p>
@@ -2332,7 +2332,7 @@ export function DispatchDashboard() {
           </div>
 
           <div className="grid min-h-0 gap-3 xl:grid-rows-[auto_auto_1fr]">
-            <div className="rounded-[1.7rem] border border-white/16 bg-black/16 px-5 py-5">
+            <div className="rounded-[1.7rem] border border-white/18 bg-white/10 px-5 py-5">
               <p className="font-mono text-sm uppercase tracking-[0.3em] text-white/62">
                 Elapsed Since Dispatch
               </p>
@@ -2341,7 +2341,7 @@ export function DispatchDashboard() {
               </p>
             </div>
             {additionalDispatches.length > 0 ? (
-              <div className="rounded-[1.7rem] border border-white/16 bg-black/12 px-5 py-5">
+              <div className="rounded-[1.7rem] border border-white/18 bg-white/10 px-5 py-5">
                 <p className="font-mono text-sm uppercase tracking-[0.3em] text-white/62">
                   Additional Active Calls
                 </p>
@@ -2349,7 +2349,7 @@ export function DispatchDashboard() {
                   {additionalDispatches.slice(0, 3).map((dispatch) => (
                     <li
                       key={dispatch.id}
-                      className="rounded-[1.2rem] border border-white/12 bg-black/12 px-4 py-3"
+                      className="rounded-[1.2rem] border border-white/14 bg-white/8 px-4 py-3"
                     >
                       <div className="flex flex-wrap items-start justify-between gap-3">
                         <p className="text-[1.2rem] font-medium leading-tight">
@@ -2377,7 +2377,7 @@ export function DispatchDashboard() {
                 type="button"
                 onClick={handleLogout}
                 disabled={loggingOut}
-                className="rounded-full border border-white/16 bg-black/8 px-3 py-1.5 font-mono text-[10px] uppercase tracking-[0.28em] text-white/68 transition hover:bg-black/16 disabled:cursor-not-allowed disabled:opacity-60"
+                className="rounded-full border border-white/18 bg-white/10 px-3 py-1.5 font-mono text-[10px] uppercase tracking-[0.28em] text-white/82 transition hover:bg-white/16 disabled:cursor-not-allowed disabled:opacity-60"
               >
                 {loggingOut ? "Logging Out" : "Log Out"}
               </button>
@@ -2400,7 +2400,7 @@ export function DispatchDashboard() {
           }}
         >
           {currentIdleScreen.artwork}
-          <div className="absolute inset-0 bg-[linear-gradient(180deg,rgba(0,0,0,0.04),rgba(0,0,0,0.34))]" />
+          <div className="absolute inset-0 bg-[linear-gradient(180deg,rgba(0,0,0,0.02),rgba(0,0,0,0.16))]" />
           <div className="relative grid h-full grid-rows-[auto_minmax(0,1fr)_auto] gap-4 px-6 py-5 sm:gap-5 sm:px-8 sm:py-6 xl:px-10 xl:py-8">
             <div className="grid gap-4 xl:grid-cols-[auto_minmax(0,1fr)_minmax(180px,240px)] xl:items-start">
               <DepartmentLogo subtitle="Turnout Board" dark compact />
@@ -2453,7 +2453,7 @@ export function DispatchDashboard() {
                   type="button"
                   onClick={handleLogout}
                   disabled={loggingOut}
-                  className="rounded-full border border-white/14 bg-black/14 px-5 py-3 font-mono text-xs uppercase tracking-[0.22em] text-white/78 transition hover:bg-black/24 disabled:cursor-not-allowed disabled:opacity-60"
+                  className="rounded-full border border-white/18 bg-white/10 px-5 py-3 font-mono text-xs uppercase tracking-[0.22em] text-white/86 transition hover:bg-white/16 disabled:cursor-not-allowed disabled:opacity-60"
                 >
                   {loggingOut ? "Logging Out" : "Log Out"}
                 </button>
