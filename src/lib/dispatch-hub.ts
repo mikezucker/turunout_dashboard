@@ -48,7 +48,7 @@ type RedisState = {
   subscribed: boolean;
 };
 
-const DEFAULT_POLL_INTERVAL_MS = 5000;
+const DEFAULT_POLL_INTERVAL_MS = 2000;
 const DEFAULT_LOCK_TTL_MS = 15000;
 const globalForDispatchHub = globalThis as typeof globalThis & {
   __turnoutDispatchHub?: DispatchHubState;

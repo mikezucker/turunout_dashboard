@@ -658,10 +658,15 @@ export async function fetchFirstDueDispatches(): Promise<DispatchFetchResult> {
       controller.signal,
     );
     const allDispatches = [...firstPage.dispatches];
+    const firstPageHasOpenDispatch = firstPage.dispatches.some((dispatch) =>
+      isOpenDispatchStatus(dispatch.status),
+    );
     const lastPage = parseLastPageFromLinkHeader(
       firstPage.response.headers.get("link"),
     );
-    const maxPages = Math.min(lastPage, getLivePageScanLimit());
+    const maxPages = firstPageHasOpenDispatch
+      ? 1
+      : Math.min(lastPage, getLivePageScanLimit());
     let supplementalPageFailure: string | null = null;
 
     for (let page = 2; page <= maxPages; page += 1) {
