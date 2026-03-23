@@ -250,7 +250,7 @@ async function fetchPersistedYearStatsFallback(
   sinceIso: string,
   rollingWindows: DispatchStatsResult["rollingWindows"],
   rollingWindowsMessage: string | null,
-  liveFailureMessage: string,
+  liveFailureMessage: string | null,
 ): Promise<DispatchStatsResult | null> {
   if (!isDatabaseConfigured()) {
     return null;
@@ -273,7 +273,9 @@ async function fetchPersistedYearStatsFallback(
       sourceLabel,
       message: joinMessages(
         rollingWindowsMessage,
-        `${liveFailureMessage} Showing persisted year-to-date totals.`,
+        liveFailureMessage
+          ? `${liveFailureMessage} Showing persisted year-to-date totals.`
+          : null,
       ),
       rollingWindows,
       totalDepartmentCalls: incidents.length,
@@ -405,6 +407,18 @@ export async function fetchDispatchStats(
     rollingWindows,
     message: rollingWindowsMessage,
   } = await fetchRollingDispatchWindows(unit);
+  const persistedYearStats = await fetchPersistedYearStatsFallback(
+    unit,
+    year,
+    sinceIso,
+    rollingWindows,
+    rollingWindowsMessage,
+    null,
+  );
+
+  if (persistedYearStats) {
+    return persistedYearStats;
+  }
 
   const headers = getFirstDueAuthHeaders();
   const apiUrl = getFirstDueApiUrl();
@@ -418,20 +432,40 @@ export async function fetchDispatchStats(
     });
   }
 
+  async function unavailableWithPersistedFallback(
+    message: string,
+    sourceLabel: string | null,
+  ) {
+    const persistedFallback = await fetchPersistedYearStatsFallback(
+      unit,
+      year,
+      sinceIso,
+      rollingWindows,
+      rollingWindowsMessage,
+      message,
+    );
+
+    if (persistedFallback) {
+      return persistedFallback;
+    }
+
+    return unavailableStatsResult({
+      year,
+      message: joinMessages(rollingWindowsMessage, message),
+      sourceLabel,
+      rollingWindows,
+    });
+  }
+
   try {
     const first = await fetchDispatchPage(buildStatsUrl(apiUrl, 1, sinceIso), headers);
     const firstResponse = first.response;
 
     if (!firstResponse.ok) {
-      return unavailableStatsResult({
-        year,
-        message: joinMessages(
-          rollingWindowsMessage,
-          `Dispatch stats request failed (${firstResponse.status}).`,
-        ),
-        sourceLabel: describeSource(apiUrl),
-        rollingWindows,
-      });
+      return unavailableWithPersistedFallback(
+        `Dispatch stats request failed (${firstResponse.status}).`,
+        describeSource(apiUrl),
+      );
     }
 
     const lastPage = parseLastPageFromLinkHeader(firstResponse.headers.get("link"));
@@ -442,15 +476,10 @@ export async function fetchDispatchStats(
       const last = await fetchDispatchPage(buildStatsUrl(apiUrl, lastPage, sinceIso), headers);
 
       if (!last.response.ok) {
-        return unavailableStatsResult({
-          year,
-          message: joinMessages(
-            rollingWindowsMessage,
-            `Dispatch stats request failed (${last.response.status}).`,
-          ),
-          sourceLabel: describeSource(apiUrl),
-          rollingWindows,
-        });
+        return unavailableWithPersistedFallback(
+          `Dispatch stats request failed (${last.response.status}).`,
+          describeSource(apiUrl),
+        );
       }
 
       totalDepartmentCalls = (lastPage - 1) * pageSize + last.dispatches.length;
@@ -504,25 +533,6 @@ export async function fetchDispatchStats(
     const reason =
       error instanceof Error ? error.message : "Dispatch stats unavailable.";
     console.error("[stats] live totals unavailable", reason);
-
-    const persistedFallback = await fetchPersistedYearStatsFallback(
-      unit,
-      year,
-      sinceIso,
-      rollingWindows,
-      rollingWindowsMessage,
-      reason,
-    );
-
-    if (persistedFallback) {
-      return persistedFallback;
-    }
-
-    return unavailableStatsResult({
-      year,
-      message: joinMessages(rollingWindowsMessage, reason),
-      sourceLabel: describeSource(apiUrl),
-      rollingWindows,
-    });
+    return unavailableWithPersistedFallback(reason, describeSource(apiUrl));
   }
 }
