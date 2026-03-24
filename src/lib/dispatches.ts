@@ -638,10 +638,7 @@ export function isRetryableFirstDueStatus(status: number) {
 }
 
 function isRetryableFirstDueError(error: unknown) {
-  return (
-    (error instanceof Error && error.name === "AbortError") ||
-    error instanceof TypeError
-  );
+  return error instanceof TypeError;
 }
 
 export function describeFirstDueHttpFailure(status: number, payload?: unknown) {

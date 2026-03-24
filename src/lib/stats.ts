@@ -194,8 +194,7 @@ async function fetchDispatchPage(
 
       if (
         attempt >= STATS_REQUEST_ATTEMPTS ||
-        !(error instanceof Error && error.name === "AbortError") &&
-          !(error instanceof TypeError)
+        !(error instanceof TypeError)
       ) {
         throw error;
       }
