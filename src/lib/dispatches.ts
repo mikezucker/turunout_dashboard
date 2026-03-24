@@ -467,24 +467,31 @@ async function fetchDispatchPage(
   url: string,
   method: string,
   headers: Headers,
-  signal: AbortSignal,
+  timeoutMs: number,
 ) {
-  const response = await fetch(url, {
-    method,
-    headers,
-    cache: "no-store",
-    signal,
-  });
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), timeoutMs);
 
-  const contentType = response.headers.get("content-type") ?? "";
-  const body = await response.text();
-  const payload = parseUpstreamPayload(body, contentType);
+  try {
+    const response = await fetch(url, {
+      method,
+      headers,
+      cache: "no-store",
+      signal: controller.signal,
+    });
 
-  return {
-    response,
-    payload,
-    dispatches: normalizeDispatchPayload(payload),
-  };
+    const contentType = response.headers.get("content-type") ?? "";
+    const body = await response.text();
+    const payload = parseUpstreamPayload(body, contentType);
+
+    return {
+      response,
+      payload,
+      dispatches: normalizeDispatchPayload(payload),
+    };
+  } finally {
+    clearTimeout(timeout);
+  }
 }
 
 
@@ -638,9 +645,6 @@ export async function fetchFirstDueDispatches(): Promise<DispatchFetchResult> {
 
   const apiUrl = config.apiUrl as string;
 
-  const controller = new AbortController();
-  const timeout = setTimeout(() => controller.abort(), config.apiTimeoutMs);
-
   try {
     const headers = new Headers({
       Accept: "application/json",
@@ -655,7 +659,7 @@ export async function fetchFirstDueDispatches(): Promise<DispatchFetchResult> {
       firstPageUrl,
       config.apiMethod,
       headers,
-      controller.signal,
+      config.apiTimeoutMs,
     );
     const allDispatches = [...firstPage.dispatches];
     const firstPageHasOpenDispatch = firstPage.dispatches.some((dispatch) =>
@@ -675,7 +679,7 @@ export async function fetchFirstDueDispatches(): Promise<DispatchFetchResult> {
           buildDispatchPageUrl(apiUrl, page),
           config.apiMethod,
           headers,
-          controller.signal,
+          config.apiTimeoutMs,
         );
 
         if (!currentPage.response.ok) {
@@ -722,7 +726,5 @@ export async function fetchFirstDueDispatches(): Promise<DispatchFetchResult> {
       message: describeFetchFailure(error, config),
       sourceLabel: describeSource(apiUrl),
     };
-  } finally {
-    clearTimeout(timeout);
   }
 }
