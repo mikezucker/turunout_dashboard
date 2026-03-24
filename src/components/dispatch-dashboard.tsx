@@ -166,6 +166,8 @@ const STATS_POLL_INTERVAL_MS = 15 * 60 * 1000;
 const HEALTH_POLL_INTERVAL_MS = 60000;
 const DISPATCH_TIME_ZONE = "America/New_York";
 const STATUS_BANNER_PERSIST_MS = 15000;
+const STALE_FEED_WARNING_MS = 90 * 1000;
+const STALE_FEED_CRITICAL_MS = 5 * 60 * 1000;
 const HIGH_PRIORITY_NATURE_PATTERNS = [
   /structure fire/i,
   /commercial fire/i,
@@ -265,6 +267,31 @@ function formatDurationBetween(
   const seconds = totalSeconds % 60;
 
   return `${String(minutes).padStart(2, "0")}:${String(seconds).padStart(2, "0")}`;
+}
+
+function formatElapsedSince(value: string | null, now: number) {
+  const start = parseTimestamp(value);
+
+  if (!start) {
+    return "Unavailable";
+  }
+
+  const totalSeconds = Math.max(0, Math.floor((now - start.getTime()) / 1000));
+
+  if (totalSeconds < 60) {
+    return `${totalSeconds}s ago`;
+  }
+
+  const totalMinutes = Math.floor(totalSeconds / 60);
+
+  if (totalMinutes < 60) {
+    return `${totalMinutes}m ago`;
+  }
+
+  const hours = Math.floor(totalMinutes / 60);
+  const minutes = totalMinutes % 60;
+
+  return minutes > 0 ? `${hours}h ${minutes}m ago` : `${hours}h ago`;
 }
 
 function timestampValue(value: string | null) {
@@ -1247,6 +1274,24 @@ export function DispatchDashboard() {
     () => formatDurationBetween(primaryDispatch?.dispatchedAt ?? null, now),
     [primaryDispatch?.dispatchedAt, now],
   );
+  const lastHealthyFetchAt = dispatchHealth?.telemetry.lastSuccessfulFetchAt ?? fetchedAt;
+  const staleFeedAgeMs = useMemo(() => {
+    const parsed = parseTimestamp(lastHealthyFetchAt);
+    return parsed ? Math.max(0, now - parsed.getTime()) : null;
+  }, [lastHealthyFetchAt, now]);
+  const staleFeedLevel = staleFeedAgeMs === null
+    ? "unknown"
+    : staleFeedAgeMs >= STALE_FEED_CRITICAL_MS
+      ? "critical"
+      : staleFeedAgeMs >= STALE_FEED_WARNING_MS
+        ? "warning"
+        : "healthy";
+  const staleFeedMessage =
+    staleFeedLevel === "critical"
+      ? `Live dispatch feed is stale. Last healthy refresh ${formatElapsedSince(lastHealthyFetchAt, now)}.`
+      : staleFeedLevel === "warning"
+        ? `Live dispatch feed is delayed. Last healthy refresh ${formatElapsedSince(lastHealthyFetchAt, now)}.`
+        : null;
   useEffect(() => {
     if (!unitId || !primaryDispatch?.id) {
       setTimelineEvents([]);
@@ -2223,6 +2268,20 @@ export function DispatchDashboard() {
                     Covered by {unit.coverageDisplayName}
                   </p>
                 ) : null}
+                {staleFeedMessage ? (
+                  <div
+                    className={`mt-4 max-w-md rounded-[1.2rem] border px-4 py-3 text-left ${
+                      staleFeedLevel === "critical"
+                        ? "border-amber-200/40 bg-amber-300/22 text-amber-50"
+                        : "border-white/18 bg-white/10 text-white/88"
+                    }`}
+                  >
+                    <p className="font-mono text-[10px] uppercase tracking-[0.22em]">
+                      Feed Status
+                    </p>
+                    <p className="mt-2 text-sm leading-6">{staleFeedMessage}</p>
+                  </div>
+                ) : null}
               </div>
             </div>
             <div className="mt-4 grid gap-4 xl:grid-cols-[minmax(0,1.04fr)_minmax(320px,0.96fr)] xl:items-start">
@@ -2354,6 +2413,9 @@ export function DispatchDashboard() {
                   <p className="mt-2 text-[1.75rem] font-medium">
                     {formatShortTime(fetchedAt)}
                   </p>
+                  <p className="mt-1 text-sm text-white/68">
+                    {formatElapsedSince(fetchedAt, now)}
+                  </p>
                 </div>
               </div>
             </div>
@@ -2475,6 +2537,11 @@ export function DispatchDashboard() {
               <div className="xl:hidden">
                 <DepartmentLogo subtitle="Turnout Board" dark />
                 <p className="mt-3 text-sm text-white/68">{unit.displayName}</p>
+                {staleFeedMessage ? (
+                  <p className="mt-2 max-w-md text-sm leading-6 text-amber-100/86">
+                    {staleFeedMessage}
+                  </p>
+                ) : null}
               </div>
               <div className="ml-auto text-right">
                 <button
@@ -2507,6 +2574,22 @@ export function DispatchDashboard() {
                 Configure <code>FIRSTDUE_API_URL</code> and auth in your server environment variables.
               </div>
             ) : null}
+          </div>
+        </div>
+      ) : null}
+      {unitId && staleFeedMessage ? (
+        <div className="pointer-events-none absolute left-1/2 top-6 z-10 w-[min(1120px,calc(100%-3rem))] -translate-x-1/2">
+          <div
+            className={`rounded-[1.4rem] border px-5 py-4 text-center shadow-[0_12px_40px_rgba(0,0,0,0.28)] backdrop-blur ${
+              staleFeedLevel === "critical"
+                ? "border-amber-200/50 bg-[rgba(112,48,0,0.7)] text-amber-50"
+                : "border-white/18 bg-[rgba(0,0,0,0.4)] text-white"
+            }`}
+          >
+            <p className="font-mono text-xs uppercase tracking-[0.28em]">
+              {staleFeedLevel === "critical" ? "Feed Stale" : "Feed Delayed"}
+            </p>
+            <p className="mt-2 text-lg leading-7">{staleFeedMessage}</p>
           </div>
         </div>
       ) : null}

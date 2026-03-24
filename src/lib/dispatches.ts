@@ -37,7 +37,7 @@ export type DispatchFetchResult = {
 type Dictionary = Record<string, unknown>;
 
 const DISPATCH_TIME_ZONE = "America/New_York";
-const DEFAULT_LIVE_PAGE_SCAN_LIMIT = 5;
+const DEFAULT_LIVE_PAGE_SCAN_LIMIT = 1;
 const FIRSTDUE_REQUEST_ATTEMPTS = 2;
 
 const CANDIDATE_ARRAY_PATHS = [
