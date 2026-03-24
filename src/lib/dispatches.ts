@@ -12,6 +12,7 @@ type UnitMatcher = {
   id: string;
   displayName: string;
   apparatus: string;
+  station?: string;
   apparatusApiId?: string;
   radioName: string;
   dispatchAliases?: string[];
@@ -77,6 +78,7 @@ const UNIT_KEYS = [
   "company",
   "unit_codes",
 ];
+const STATION_KEYS = ["fire_stations", "station", "stations"];
 const STATUS_KEYS = ["status", "state", "disposition", "status_code"];
 const TIMESTAMP_KEYS = [
   "timestamp",
@@ -207,6 +209,14 @@ function pickString(record: Dictionary, keys: string[]): string | null {
   }
 
   return null;
+}
+
+function joinStringValues(...values: Array<string | null>) {
+  const parts = values.filter(
+    (value): value is string => typeof value === "string" && value.trim().length > 0,
+  );
+
+  return parts.length > 0 ? parts.join(", ") : null;
 }
 
 function inferArray(payload: unknown): unknown[] {
@@ -419,13 +429,17 @@ function normalizeRecord(item: unknown, index: number): DispatchRecord | null {
     pickString(record, INCIDENT_KEYS) ??
     `dispatch-${index}`;
   const incidentNumber = pickString(record, INCIDENT_KEYS);
+  const unit = joinStringValues(
+    pickString(record, UNIT_KEYS),
+    pickString(record, STATION_KEYS),
+  );
 
   return {
     id,
     incidentNumber,
     address: pickString(record, ADDRESS_KEYS),
     nature: pickString(record, NATURE_KEYS),
-    unit: pickString(record, UNIT_KEYS),
+    unit,
     status: pickString(record, STATUS_KEYS),
     dispatchedAt:
       resolveEmsDutyDispatchTime(record, incidentNumber) ??
@@ -564,6 +578,7 @@ export function filterDispatchesForUnit(
       unit.id,
       unit.displayName,
       unit.apparatus,
+      unit.station,
       unit.apparatusApiId,
       unit.radioName,
       `${unit.apparatus} ${unit.id}`,

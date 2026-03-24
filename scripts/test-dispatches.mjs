@@ -7,8 +7,10 @@ import ts from "typescript";
 async function loadDispatchModule() {
   const sourcePath = path.resolve("src/lib/dispatches.ts");
   const envSourcePath = path.resolve("src/lib/firstdue-env.ts");
+  const sharedSourcePath = path.resolve("src/lib/dispatch-shared.ts");
   const source = await readFile(sourcePath, "utf8");
   const envSource = await readFile(envSourcePath, "utf8");
+  const sharedSource = await readFile(sharedSourcePath, "utf8");
   const transpiled = ts.transpileModule(source, {
     compilerOptions: {
       module: ts.ModuleKind.ES2022,
@@ -23,16 +25,34 @@ async function loadDispatchModule() {
     },
     fileName: envSourcePath,
   });
+  const transpiledShared = ts.transpileModule(sharedSource, {
+    compilerOptions: {
+      module: ts.ModuleKind.ES2022,
+      target: ts.ScriptTarget.ES2022,
+    },
+    fileName: sharedSourcePath,
+  });
 
   const tempDir = await mkdtemp(path.join(os.tmpdir(), "turnout-dispatches-"));
   const tempModulePath = path.join(tempDir, "dispatches.mjs");
   const tempEnvModulePath = path.join(tempDir, "firstdue-env.mjs");
-  const rewrittenDispatchModule = transpiled.outputText.replace(
-    /from\s+["']@\/lib\/firstdue-env["']/g,
-    'from "./firstdue-env.mjs"',
+  const tempSharedModulePath = path.join(tempDir, "dispatch-shared.mjs");
+  const tempNextEnvModulePath = path.join(tempDir, "next-env.mjs");
+  const rewrittenDispatchModule = transpiled.outputText
+    .replace(/from\s+["']@\/lib\/firstdue-env["']/g, 'from "./firstdue-env.mjs"')
+    .replace(/from\s+["']@\/lib\/dispatch-shared["']/g, 'from "./dispatch-shared.mjs"');
+  const rewrittenEnvModule = transpiledEnv.outputText.replace(
+    /from\s+["']@next\/env["']/g,
+    'from "./next-env.mjs"',
   );
 
-  await writeFile(tempEnvModulePath, transpiledEnv.outputText, "utf8");
+  await writeFile(
+    tempNextEnvModulePath,
+    'export function loadEnvConfig() {}\n',
+    "utf8",
+  );
+  await writeFile(tempEnvModulePath, rewrittenEnvModule, "utf8");
+  await writeFile(tempSharedModulePath, transpiledShared.outputText, "utf8");
   await writeFile(tempModulePath, rewrittenDispatchModule, "utf8");
 
   try {
@@ -47,6 +67,8 @@ function printResult(label) {
 }
 
 const {
+  filterDispatchesForUnit,
+  normalizeDispatchPayload,
   parseCadTimestamp,
   resolveDutyDispatchTimestampFromCadMessage,
 } = await loadDispatchModule();
@@ -95,3 +117,30 @@ assert.equal(
   null,
 );
 printResult("ignores non-EMS incidents");
+
+const normalizedStationDispatches = normalizeDispatchPayload([
+  {
+    id: "station-only-1",
+    type: "FIRE ALARM",
+    address: "123 Main St",
+    fire_stations: ["Station 1"],
+    status_code: "open",
+    created_at: "2026-03-24T14:15:00.000Z",
+  },
+]);
+
+assert.equal(normalizedStationDispatches[0]?.unit, "Station 1");
+printResult("normalizes station-only dispatch assignments");
+
+assert.equal(
+  filterDispatchesForUnit(normalizedStationDispatches, {
+    id: "engine1",
+    displayName: "Engine 1",
+    apparatus: "Engine",
+    station: "Station 1",
+    radioName: "E1",
+    dispatchAliases: [],
+  }).length,
+  1,
+);
+printResult("matches station-only dispatches for units at that station");
