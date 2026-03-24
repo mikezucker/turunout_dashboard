@@ -95,6 +95,25 @@ type DispatchHealthResponse = {
     publisherStatus: string;
     subscriberStatus: string;
   };
+  firstDue?: {
+    apiUrl: {
+      present: boolean;
+      normalizedPresent: boolean;
+      valid: boolean;
+      valuePreview: string | null;
+    };
+    auth: {
+      headerNamePresent: boolean;
+      headerValuePresent: boolean;
+      tokenPresent: boolean;
+    };
+    timeout: {
+      present: boolean;
+      normalizedPresent: boolean;
+      parsedMs: number;
+    };
+    sessionSecretPresent: boolean;
+  };
   telemetry: {
     lastRefreshStartedAt: string | null;
     lastRefreshCompletedAt: string | null;
@@ -1833,6 +1852,14 @@ export function DispatchDashboard() {
                   </p>
                   <p className="mt-2 text-base text-white/66">
                     Retention {dispatchHealth?.retentionDays ?? 0} days
+                  </p>
+                </div>
+                <div className="rounded-[1.5rem] border border-white/10 bg-white/6 px-5 py-5">
+                  <p className="font-mono text-xs uppercase tracking-[0.22em] text-white/54">
+                    FirstDue Config
+                  </p>
+                  <p className="mt-3 text-xl leading-8 text-white/78">
+                    URL {dispatchHealth?.firstDue?.apiUrl.valid ? "ready" : "invalid"} / auth {dispatchHealth?.firstDue?.auth.headerValuePresent ? "present" : "missing"} / timeout {dispatchHealth?.firstDue?.timeout.parsedMs ?? "n/a"} ms
                   </p>
                 </div>
                 <div className="rounded-[1.5rem] border border-white/10 bg-white/6 px-5 py-5">

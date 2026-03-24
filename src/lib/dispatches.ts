@@ -38,6 +38,7 @@ type Dictionary = Record<string, unknown>;
 
 const DISPATCH_TIME_ZONE = "America/New_York";
 const DEFAULT_LIVE_PAGE_SCAN_LIMIT = 5;
+const FIRSTDUE_REQUEST_ATTEMPTS = 2;
 
 const CANDIDATE_ARRAY_PATHS = [
   ["dispatches"],
@@ -469,29 +470,51 @@ async function fetchDispatchPage(
   headers: Headers,
   timeoutMs: number,
 ) {
-  const controller = new AbortController();
-  const timeout = setTimeout(() => controller.abort(), timeoutMs);
+  let lastError: unknown = null;
 
-  try {
-    const response = await fetch(url, {
-      method,
-      headers,
-      cache: "no-store",
-      signal: controller.signal,
-    });
+  for (let attempt = 1; attempt <= FIRSTDUE_REQUEST_ATTEMPTS; attempt += 1) {
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), timeoutMs);
 
-    const contentType = response.headers.get("content-type") ?? "";
-    const body = await response.text();
-    const payload = parseUpstreamPayload(body, contentType);
+    try {
+      const response = await fetch(url, {
+        method,
+        headers,
+        cache: "no-store",
+        signal: controller.signal,
+      });
 
-    return {
-      response,
-      payload,
-      dispatches: normalizeDispatchPayload(payload),
-    };
-  } finally {
-    clearTimeout(timeout);
+      const contentType = response.headers.get("content-type") ?? "";
+      const body = await response.text();
+      const payload = parseUpstreamPayload(body, contentType);
+
+      if (
+        attempt < FIRSTDUE_REQUEST_ATTEMPTS &&
+        isRetryableFirstDueStatus(response.status)
+      ) {
+        continue;
+      }
+
+      return {
+        response,
+        payload,
+        dispatches: normalizeDispatchPayload(payload),
+      };
+    } catch (error) {
+      lastError = error;
+
+      if (
+        attempt >= FIRSTDUE_REQUEST_ATTEMPTS ||
+        !isRetryableFirstDueError(error)
+      ) {
+        throw error;
+      }
+    } finally {
+      clearTimeout(timeout);
+    }
   }
+
+  throw lastError instanceof Error ? lastError : new Error("FirstDue request failed.");
 }
 
 
@@ -610,6 +633,37 @@ function extractUpstreamErrorMessage(payload: unknown) {
   return null;
 }
 
+export function isRetryableFirstDueStatus(status: number) {
+  return [408, 429, 500, 502, 503, 504].includes(status);
+}
+
+function isRetryableFirstDueError(error: unknown) {
+  return (
+    (error instanceof Error && error.name === "AbortError") ||
+    error instanceof TypeError
+  );
+}
+
+export function describeFirstDueHttpFailure(status: number, payload?: unknown) {
+  const upstreamMessage = extractUpstreamErrorMessage(payload);
+
+  if (status === 401) {
+    return "FirstDue rejected the configured credentials (HTTP 401). Check FIRSTDUE_API_HEADER_NAME and FIRSTDUE_API_HEADER_VALUE.";
+  }
+
+  if (status === 403) {
+    return "FirstDue accepted the request but denied access (HTTP 403). The current credentials do not have permission for this endpoint.";
+  }
+
+  if (status === 503 || status === 504) {
+    return upstreamMessage
+      ? `FirstDue is temporarily unavailable (${status}): ${upstreamMessage}`
+      : `FirstDue is temporarily unavailable (HTTP ${status}).`;
+  }
+
+  return upstreamMessage ?? `FirstDue returned HTTP ${status}.`;
+}
+
 function describeFetchFailure(error: unknown, config: PollConfig) {
   if (
     error instanceof Error &&
@@ -712,8 +766,7 @@ export async function fetchFirstDueDispatches(): Promise<DispatchFetchResult> {
       message:
         response.ok
           ? supplementalPageFailure
-          : extractUpstreamErrorMessage(payload) ??
-            `FirstDue returned HTTP ${response.status}.`,
+          : describeFirstDueHttpFailure(response.status, payload),
       sourceLabel: describeSource(apiUrl),
       rawPreview:
         typeof payload === "string" ? payload.slice(0, 500) : payload,

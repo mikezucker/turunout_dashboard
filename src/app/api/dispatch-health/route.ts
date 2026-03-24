@@ -5,6 +5,7 @@ import {
   getDispatchHubHealth,
   getDispatchSnapshot,
 } from "@/lib/dispatch-hub";
+import { getFirstDueEnvDebug } from "@/lib/firstdue-env";
 import {
   readSessionToken,
   sessionCookieName,
@@ -28,7 +29,10 @@ export async function GET() {
     ensureDispatchPolling();
     await getDispatchSnapshot();
 
-    return NextResponse.json(getDispatchHubHealth());
+    return NextResponse.json({
+      ...getDispatchHubHealth(),
+      firstDue: getFirstDueEnvDebug(),
+    });
   } catch (error) {
     const message =
       error instanceof Error ? error.message : "Dispatch diagnostics unavailable.";
@@ -36,6 +40,7 @@ export async function GET() {
     return NextResponse.json(
       {
         ...getDispatchHubHealth(),
+        firstDue: getFirstDueEnvDebug(),
         ok: false,
         message,
       },

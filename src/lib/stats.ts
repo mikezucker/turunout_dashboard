@@ -1,5 +1,7 @@
 import {
+  describeFirstDueHttpFailure,
   filterDispatchesForUnit,
+  isRetryableFirstDueStatus,
   normalizeDispatchPayload,
 } from "@/lib/dispatches";
 import { isDatabaseConfigured } from "@/lib/db";
@@ -45,6 +47,7 @@ export type DispatchStatsResult = {
 
 const PAGE_SIZE_FALLBACK = 20;
 const CLASSIFICATION_MAX_PAGES = 50;
+const STATS_REQUEST_ATTEMPTS = 2;
 const ROLLING_WINDOWS = [
   { label: "Last 24 Hours", days: 1 },
   { label: "Last 7 Days", days: 7 },
@@ -162,18 +165,44 @@ async function fetchDispatchPage(
   url: string,
   headers: Record<string, string>,
 ) {
-  const response = await fetch(url, {
-    headers,
-    cache: "no-store",
-    signal: AbortSignal.timeout(12000),
-  });
+  let lastError: unknown = null;
 
-  const payload = (await response.json()) as unknown;
+  for (let attempt = 1; attempt <= STATS_REQUEST_ATTEMPTS; attempt += 1) {
+    try {
+      const response = await fetch(url, {
+        headers,
+        cache: "no-store",
+        signal: AbortSignal.timeout(12000),
+      });
 
-  return {
-    response,
-    dispatches: normalizeDispatchPayload(payload),
-  };
+      const payload = (await response.json()) as unknown;
+
+      if (
+        attempt < STATS_REQUEST_ATTEMPTS &&
+        isRetryableFirstDueStatus(response.status)
+      ) {
+        continue;
+      }
+
+      return {
+        response,
+        payload,
+        dispatches: normalizeDispatchPayload(payload),
+      };
+    } catch (error) {
+      lastError = error;
+
+      if (
+        attempt >= STATS_REQUEST_ATTEMPTS ||
+        !(error instanceof Error && error.name === "AbortError") &&
+          !(error instanceof TypeError)
+      ) {
+        throw error;
+      }
+    }
+  }
+
+  throw lastError instanceof Error ? lastError : new Error("Dispatch stats request failed.");
 }
 
 function classifyCalls(dispatches: DispatchRecord[]) {
@@ -463,7 +492,7 @@ export async function fetchDispatchStats(
 
     if (!firstResponse.ok) {
       return unavailableWithPersistedFallback(
-        `Dispatch stats request failed (${firstResponse.status}).`,
+        describeFirstDueHttpFailure(firstResponse.status, first.payload),
         describeSource(apiUrl),
       );
     }
@@ -477,7 +506,7 @@ export async function fetchDispatchStats(
 
       if (!last.response.ok) {
         return unavailableWithPersistedFallback(
-          `Dispatch stats request failed (${last.response.status}).`,
+          describeFirstDueHttpFailure(last.response.status, last.payload),
           describeSource(apiUrl),
         );
       }
