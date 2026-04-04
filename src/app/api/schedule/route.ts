@@ -6,5 +6,5 @@ export const dynamic = "force-dynamic";
 export async function GET() {
   const result = await fetchDailySchedule();
 
-  return NextResponse.json(result, { status: result.ok ? 200 : 502 });
+  return NextResponse.json(result, { status: 200 });
 }

@@ -108,52 +108,62 @@ export async function fetchDailySchedule(): Promise<ScheduleResult> {
     };
   }
 
-  const response = await fetch("https://sizeup.firstduesizeup.com/fd-api/v1/schedule", {
-    headers,
-    cache: "no-store",
-  });
-  const payload = (await response.json()) as unknown;
+  try {
+    const response = await fetch("https://sizeup.firstduesizeup.com/fd-api/v1/schedule", {
+      headers,
+      cache: "no-store",
+      signal: AbortSignal.timeout(12000),
+    });
+    const payload = (await response.json()) as unknown;
 
-  if (!response.ok) {
-    return {
-      ok: false,
-      message: "Failed to load FirstDue schedule.",
-      date: null,
-      entries: [],
-    };
-  }
+    if (!response.ok) {
+      return {
+        ok: false,
+        message: "Failed to load FirstDue schedule.",
+        date: null,
+        entries: [],
+      };
+    }
 
-  const days = Array.isArray(payload) ? payload : [];
-  const day = asDictionary(days[0]);
+    const days = Array.isArray(payload) ? payload : [];
+    const day = asDictionary(days[0]);
 
-  if (!day) {
+    if (!day) {
+      return {
+        ok: true,
+        message: "No schedule returned for today.",
+        date: null,
+        entries: [],
+      };
+    }
+
+    const assignments = Array.isArray(day.assignments) ? day.assignments : [];
+    const entries = assignments
+      .filter((item) => {
+        const record = asDictionary(item);
+
+        if (!record) {
+          return false;
+        }
+
+        const board = Array.isArray(record.board) ? record.board : [];
+        return board.length > 0;
+      })
+      .map(normalizeScheduleEntry)
+      .filter((entry): entry is ScheduleEntry => entry !== null);
+
     return {
       ok: true,
-      message: "No schedule returned for today.",
+      message: null,
+      date: pickString(day, "date"),
+      entries,
+    };
+  } catch (error) {
+    return {
+      ok: false,
+      message: error instanceof Error ? error.message : "Failed to load FirstDue schedule.",
       date: null,
       entries: [],
     };
   }
-
-  const assignments = Array.isArray(day.assignments) ? day.assignments : [];
-  const entries = assignments
-    .filter((item) => {
-      const record = asDictionary(item);
-
-      if (!record) {
-        return false;
-      }
-
-      const board = Array.isArray(record.board) ? record.board : [];
-      return board.length > 0;
-    })
-    .map(normalizeScheduleEntry)
-    .filter((entry): entry is ScheduleEntry => entry !== null);
-
-  return {
-    ok: true,
-    message: null,
-    date: pickString(day, "date"),
-    entries,
-  };
 }

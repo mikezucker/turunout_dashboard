@@ -19,5 +19,5 @@ export async function GET() {
 
   const result = await fetchUnitWorkOrders(unitId);
 
-  return NextResponse.json(result, { status: result.ok ? 200 : 502 });
+  return NextResponse.json(result, { status: 200 });
 }

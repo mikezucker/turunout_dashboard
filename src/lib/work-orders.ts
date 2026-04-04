@@ -165,21 +165,48 @@ export async function fetchUnitWorkOrders(unitId: string) {
     };
   }
 
-  const response = await fetch(
-    `https://sizeup.firstduesizeup.com/fd-api/v1/apparatuses/${apparatusApiId}/work-orders`,
-    {
-      headers,
-      cache: "no-store",
-    },
-  );
-  const body = await response.text();
-  const payload = parsePayload(body, response.headers.get("content-type") ?? "");
+  try {
+    const response = await fetch(
+      `https://sizeup.firstduesizeup.com/fd-api/v1/apparatuses/${apparatusApiId}/work-orders`,
+      {
+        headers,
+        cache: "no-store",
+        signal: AbortSignal.timeout(12000),
+      },
+    );
+    const body = await response.text();
+    const payload = parsePayload(body, response.headers.get("content-type") ?? "");
 
-  if (!response.ok) {
-    const record = asDictionary(payload);
+    if (!response.ok) {
+      const record = asDictionary(payload);
+      const message =
+        (record && pickString(record, ["message", "error"])) ??
+        "Failed to load apparatus work orders.";
+
+      return {
+        ok: false,
+        message,
+        workOrders: unit.openWorkOrders.map((title, index) => ({
+          id: `fallback-${index}`,
+          title,
+          status: null,
+        })),
+      };
+    }
+
+    const workOrders = normalizeWorkOrders(payload).filter(
+      (workOrder) => !isExcludedWorkOrder(workOrder),
+    );
+
+    return {
+      ok: true,
+      message:
+        workOrders.length > 0 ? null : "There are no active work orders for this apparatus.",
+      workOrders,
+    };
+  } catch (error) {
     const message =
-      (record && pickString(record, ["message", "error"])) ??
-      "Failed to load apparatus work orders.";
+      error instanceof Error ? error.message : "Failed to load apparatus work orders.";
 
     return {
       ok: false,
@@ -191,15 +218,4 @@ export async function fetchUnitWorkOrders(unitId: string) {
       })),
     };
   }
-
-  const workOrders = normalizeWorkOrders(payload).filter(
-    (workOrder) => !isExcludedWorkOrder(workOrder),
-  );
-
-  return {
-    ok: true,
-    message:
-      workOrders.length > 0 ? null : "There are no active work orders for this apparatus.",
-    workOrders,
-  };
 }

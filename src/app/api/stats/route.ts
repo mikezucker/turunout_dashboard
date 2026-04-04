@@ -36,5 +36,5 @@ export async function GET() {
     dispatchAliases: getDispatchAliasTokens(unit),
   });
 
-  return NextResponse.json(result, { status: result.ok ? 200 : 502 });
+  return NextResponse.json(result, { status: 200 });
 }
