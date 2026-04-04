@@ -24,6 +24,12 @@ const globalForDispatchStore = globalThis as typeof globalThis & {
   __turnoutDispatchRetentionCleanupAt?: number;
 };
 
+function logDatabaseFallback(scope: string, error: unknown) {
+  const reason =
+    error instanceof Error ? error.message : "Unknown database error.";
+  console.error(`[dispatch-store] ${scope}`, reason);
+}
+
 export function getDispatchRetentionDays() {
   const rawValue = process.env.DISPATCH_RETENTION_DAYS?.trim() ?? "30";
   const parsedValue = Number(rawValue);
@@ -141,141 +147,145 @@ export async function persistDispatchSnapshot(snapshot: DispatchSnapshot) {
 
   const runRetentionCleanup = shouldRunRetentionCleanup();
 
-  await withTransaction(async (client) => {
-    await client.query(
-      `
-        INSERT INTO dispatch_snapshots (
-          fetched_at,
-          revision,
-          configured,
-          upstream_status,
-          message,
-          source_label,
-          result
-        )
-        VALUES ($1, $2, $3, $4, $5, $6, $7::jsonb)
-        ON CONFLICT (fetched_at) DO UPDATE
-        SET
-          revision = EXCLUDED.revision,
-          configured = EXCLUDED.configured,
-          upstream_status = EXCLUDED.upstream_status,
-          message = EXCLUDED.message,
-          source_label = EXCLUDED.source_label,
-          result = EXCLUDED.result
-      `,
-      [
-        snapshot.fetchedAt,
-        snapshot.revision,
-        snapshot.result.configured,
-        snapshot.result.upstreamStatus,
-        snapshot.result.message,
-        snapshot.result.sourceLabel,
-        JSON.stringify(snapshot.result),
-      ],
-    );
-
-    const incidentIds = snapshot.result.dispatches.map((dispatch) => dispatch.id);
-    const existingIncidents = await loadExistingIncidents(client, incidentIds);
-
-    for (const dispatch of snapshot.result.dispatches) {
-      const contentHash = dispatchContentHash(dispatch);
-      const previous = existingIncidents.get(dispatch.id);
-      const eventType = inferEventType(previous, dispatch, contentHash);
-
+  try {
+    await withTransaction(async (client) => {
       await client.query(
         `
-          INSERT INTO dispatch_incidents (
-            incident_id,
-            incident_number,
-            address,
-            nature,
-            unit,
-            status,
-            dispatched_at,
-            last_activity_at,
-            enroute_at,
-            latest_message,
-            content_hash,
-            raw,
-            first_seen_at,
-            last_seen_at,
-            latest_snapshot_at
+          INSERT INTO dispatch_snapshots (
+            fetched_at,
+            revision,
+            configured,
+            upstream_status,
+            message,
+            source_label,
+            result
           )
-          VALUES (
-            $1, $2, $3, $4, $5, $6,
-            NULLIF($7, '')::timestamptz,
-            NULLIF($8, '')::timestamptz,
-            NULLIF($9, '')::timestamptz,
-            $10, $11, $12::jsonb,
-            $13::timestamptz, $14::timestamptz, $15::timestamptz
-          )
-          ON CONFLICT (incident_id) DO UPDATE
+          VALUES ($1, $2, $3, $4, $5, $6, $7::jsonb)
+          ON CONFLICT (fetched_at) DO UPDATE
           SET
-            incident_number = EXCLUDED.incident_number,
-            address = EXCLUDED.address,
-            nature = EXCLUDED.nature,
-            unit = EXCLUDED.unit,
-            status = EXCLUDED.status,
-            dispatched_at = EXCLUDED.dispatched_at,
-            last_activity_at = EXCLUDED.last_activity_at,
-            enroute_at = EXCLUDED.enroute_at,
-            latest_message = EXCLUDED.latest_message,
-            content_hash = EXCLUDED.content_hash,
-            raw = EXCLUDED.raw,
-            last_seen_at = EXCLUDED.last_seen_at,
-            latest_snapshot_at = EXCLUDED.latest_snapshot_at
+            revision = EXCLUDED.revision,
+            configured = EXCLUDED.configured,
+            upstream_status = EXCLUDED.upstream_status,
+            message = EXCLUDED.message,
+            source_label = EXCLUDED.source_label,
+            result = EXCLUDED.result
         `,
         [
-          dispatch.id,
-          dispatch.incidentNumber,
-          dispatch.address,
-          dispatch.nature,
-          dispatch.unit,
-          dispatch.status,
-          dispatch.dispatchedAt ?? "",
-          dispatch.lastActivityAt ?? "",
-          dispatch.enrouteAt ?? "",
-          dispatch.message,
-          contentHash,
-          JSON.stringify(dispatch.raw),
           snapshot.fetchedAt,
-          snapshot.fetchedAt,
-          snapshot.fetchedAt,
+          snapshot.revision,
+          snapshot.result.configured,
+          snapshot.result.upstreamStatus,
+          snapshot.result.message,
+          snapshot.result.sourceLabel,
+          JSON.stringify(snapshot.result),
         ],
       );
 
-      if (!eventType) {
-        continue;
+      const incidentIds = snapshot.result.dispatches.map((dispatch) => dispatch.id);
+      const existingIncidents = await loadExistingIncidents(client, incidentIds);
+
+      for (const dispatch of snapshot.result.dispatches) {
+        const contentHash = dispatchContentHash(dispatch);
+        const previous = existingIncidents.get(dispatch.id);
+        const eventType = inferEventType(previous, dispatch, contentHash);
+
+        await client.query(
+          `
+            INSERT INTO dispatch_incidents (
+              incident_id,
+              incident_number,
+              address,
+              nature,
+              unit,
+              status,
+              dispatched_at,
+              last_activity_at,
+              enroute_at,
+              latest_message,
+              content_hash,
+              raw,
+              first_seen_at,
+              last_seen_at,
+              latest_snapshot_at
+            )
+            VALUES (
+              $1, $2, $3, $4, $5, $6,
+              NULLIF($7, '')::timestamptz,
+              NULLIF($8, '')::timestamptz,
+              NULLIF($9, '')::timestamptz,
+              $10, $11, $12::jsonb,
+              $13::timestamptz, $14::timestamptz, $15::timestamptz
+            )
+            ON CONFLICT (incident_id) DO UPDATE
+            SET
+              incident_number = EXCLUDED.incident_number,
+              address = EXCLUDED.address,
+              nature = EXCLUDED.nature,
+              unit = EXCLUDED.unit,
+              status = EXCLUDED.status,
+              dispatched_at = EXCLUDED.dispatched_at,
+              last_activity_at = EXCLUDED.last_activity_at,
+              enroute_at = EXCLUDED.enroute_at,
+              latest_message = EXCLUDED.latest_message,
+              content_hash = EXCLUDED.content_hash,
+              raw = EXCLUDED.raw,
+              last_seen_at = EXCLUDED.last_seen_at,
+              latest_snapshot_at = EXCLUDED.latest_snapshot_at
+          `,
+          [
+            dispatch.id,
+            dispatch.incidentNumber,
+            dispatch.address,
+            dispatch.nature,
+            dispatch.unit,
+            dispatch.status,
+            dispatch.dispatchedAt ?? "",
+            dispatch.lastActivityAt ?? "",
+            dispatch.enrouteAt ?? "",
+            dispatch.message,
+            contentHash,
+            JSON.stringify(dispatch.raw),
+            snapshot.fetchedAt,
+            snapshot.fetchedAt,
+            snapshot.fetchedAt,
+          ],
+        );
+
+        if (!eventType) {
+          continue;
+        }
+
+        await client.query(
+          `
+            INSERT INTO dispatch_events (
+              incident_id,
+              fetched_at,
+              event_type,
+              status,
+              content_hash,
+              payload
+            )
+            VALUES ($1, $2::timestamptz, $3, $4, $5, $6::jsonb)
+            ON CONFLICT (incident_id, content_hash) DO NOTHING
+          `,
+          [
+            dispatch.id,
+            snapshot.fetchedAt,
+            eventType,
+            dispatch.status,
+            contentHash,
+            JSON.stringify(dispatch),
+          ],
+        );
       }
 
-      await client.query(
-        `
-          INSERT INTO dispatch_events (
-            incident_id,
-            fetched_at,
-            event_type,
-            status,
-            content_hash,
-            payload
-          )
-          VALUES ($1, $2::timestamptz, $3, $4, $5, $6::jsonb)
-          ON CONFLICT (incident_id, content_hash) DO NOTHING
-        `,
-        [
-          dispatch.id,
-          snapshot.fetchedAt,
-          eventType,
-          dispatch.status,
-          contentHash,
-          JSON.stringify(dispatch),
-        ],
-      );
-    }
-
-    if (runRetentionCleanup) {
-      await cleanupExpiredDispatchData(client);
-    }
-  });
+      if (runRetentionCleanup) {
+        await cleanupExpiredDispatchData(client);
+      }
+    });
+  } catch (error) {
+    logDatabaseFallback("persistDispatchSnapshot skipped", error);
+  }
 }
 
 export async function getLatestPersistedDispatchSnapshot() {
@@ -283,30 +293,35 @@ export async function getLatestPersistedDispatchSnapshot() {
     return null;
   }
 
-  const result = await query<{
-    fetched_at: string;
-    revision: number;
-    result: DispatchSnapshot["result"];
-  }>(
-    `
-      SELECT fetched_at, revision, result
-      FROM dispatch_snapshots
-      ORDER BY fetched_at DESC
-      LIMIT 1
-    `,
-  );
+  try {
+    const result = await query<{
+      fetched_at: string;
+      revision: number;
+      result: DispatchSnapshot["result"];
+    }>(
+      `
+        SELECT fetched_at, revision, result
+        FROM dispatch_snapshots
+        ORDER BY fetched_at DESC
+        LIMIT 1
+      `,
+    );
 
-  const row = result.rows[0];
+    const row = result.rows[0];
 
-  if (!row) {
+    if (!row) {
+      return null;
+    }
+
+    return {
+      fetchedAt: new Date(row.fetched_at).toISOString(),
+      revision: row.revision,
+      result: row.result,
+    } satisfies DispatchSnapshot;
+  } catch (error) {
+    logDatabaseFallback("getLatestPersistedDispatchSnapshot skipped", error);
     return null;
   }
-
-  return {
-    fetchedAt: new Date(row.fetched_at).toISOString(),
-    revision: row.revision,
-    result: row.result,
-  } satisfies DispatchSnapshot;
 }
 
 export async function getPersistedIncidentsSince(sinceIso: string) {
@@ -314,52 +329,57 @@ export async function getPersistedIncidentsSince(sinceIso: string) {
     return [];
   }
 
-  const result = await query<{
-    incident_id: string;
-    incident_number: string | null;
-    address: string | null;
-    nature: string | null;
-    unit: string | null;
-    status: string | null;
-    dispatched_at: string | null;
-    last_activity_at: string | null;
-    latest_message: string | null;
-    enroute_at: string | null;
-    raw: unknown;
-  }>(
-    `
-      SELECT
-        incident_id,
-        incident_number,
-        address,
-        nature,
-        unit,
-        status,
-        dispatched_at,
-        last_activity_at,
-        latest_message,
-        enroute_at,
-        raw
-      FROM dispatch_incidents
-      WHERE COALESCE(dispatched_at, first_seen_at) >= $1::timestamptz
-      ORDER BY COALESCE(last_activity_at, dispatched_at, first_seen_at) DESC
-    `,
-    [sinceIso],
-  );
+  try {
+    const result = await query<{
+      incident_id: string;
+      incident_number: string | null;
+      address: string | null;
+      nature: string | null;
+      unit: string | null;
+      status: string | null;
+      dispatched_at: string | null;
+      last_activity_at: string | null;
+      latest_message: string | null;
+      enroute_at: string | null;
+      raw: unknown;
+    }>(
+      `
+        SELECT
+          incident_id,
+          incident_number,
+          address,
+          nature,
+          unit,
+          status,
+          dispatched_at,
+          last_activity_at,
+          latest_message,
+          enroute_at,
+          raw
+        FROM dispatch_incidents
+        WHERE COALESCE(dispatched_at, first_seen_at) >= $1::timestamptz
+        ORDER BY COALESCE(last_activity_at, dispatched_at, first_seen_at) DESC
+      `,
+      [sinceIso],
+    );
 
-  return result.rows.map((row) => ({
-    id: row.incident_id,
-    incidentNumber: row.incident_number,
-    address: row.address,
-    nature: row.nature,
-    unit: row.unit,
-    status: row.status,
-    dispatchedAt: row.dispatched_at,
-    lastActivityAt: row.last_activity_at,
-    message: row.latest_message,
-    enrouteAt: row.enroute_at,
-    raw: row.raw,
-  })) satisfies DispatchRecord[];
+    return result.rows.map((row) => ({
+      id: row.incident_id,
+      incidentNumber: row.incident_number,
+      address: row.address,
+      nature: row.nature,
+      unit: row.unit,
+      status: row.status,
+      dispatchedAt: row.dispatched_at,
+      lastActivityAt: row.last_activity_at,
+      message: row.latest_message,
+      enrouteAt: row.enroute_at,
+      raw: row.raw,
+    })) satisfies DispatchRecord[];
+  } catch (error) {
+    logDatabaseFallback("getPersistedIncidentsSince skipped", error);
+    return [];
+  }
 }
 
 export async function getIncidentEvents(
@@ -370,38 +390,43 @@ export async function getIncidentEvents(
     return [];
   }
 
-  const result = await query<{
-    id: string;
-    incident_id: string;
-    fetched_at: string;
-    event_type: string;
-    status: string | null;
-    payload: unknown;
-  }>(
-    `
-      SELECT
-        id,
-        incident_id,
-        fetched_at,
-        event_type,
-        status,
-        payload
-      FROM dispatch_events
-      WHERE incident_id = $1
-      ORDER BY fetched_at DESC, id DESC
-      LIMIT $2
-    `,
-    [incidentId, limit],
-  );
+  try {
+    const result = await query<{
+      id: string;
+      incident_id: string;
+      fetched_at: string;
+      event_type: string;
+      status: string | null;
+      payload: unknown;
+    }>(
+      `
+        SELECT
+          id,
+          incident_id,
+          fetched_at,
+          event_type,
+          status,
+          payload
+        FROM dispatch_events
+        WHERE incident_id = $1
+        ORDER BY fetched_at DESC, id DESC
+        LIMIT $2
+      `,
+      [incidentId, limit],
+    );
 
-  return result.rows
-    .map((row) => ({
-      id: Number(row.id),
-      incidentId: row.incident_id,
-      fetchedAt: new Date(row.fetched_at).toISOString(),
-      eventType: row.event_type,
-      status: row.status,
-      dispatch: row.payload as DispatchRecord,
-    }))
-    .reverse();
+    return result.rows
+      .map((row) => ({
+        id: Number(row.id),
+        incidentId: row.incident_id,
+        fetchedAt: new Date(row.fetched_at).toISOString(),
+        eventType: row.event_type,
+        status: row.status,
+        dispatch: row.payload as DispatchRecord,
+      }))
+      .reverse();
+  } catch (error) {
+    logDatabaseFallback("getIncidentEvents skipped", error);
+    return [];
+  }
 }

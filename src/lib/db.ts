@@ -9,6 +9,7 @@ const globalForDb = globalThis as typeof globalThis & {
   __turnoutDbPool?: Pool | null;
   __turnoutDbBootstrapPool?: Pool | null;
   __turnoutDbSchemaReady?: Promise<void> | null;
+  __turnoutDbDisabledReason?: string | null;
 };
 
 const DATABASE_STATEMENT_TIMEOUT_MS = 15000;
@@ -75,6 +76,10 @@ function getDatabaseCandidate() {
 
 function getDatabaseUrl() {
   return getDatabaseCandidate()?.value ?? null;
+}
+
+function hasDatabaseUrlConfigured() {
+  return getDatabaseUrl() !== null;
 }
 
 function getBootstrapDatabaseCandidate() {
@@ -150,11 +155,34 @@ function getSanitizedBootstrapDatabaseUrl() {
 }
 
 export function isDatabaseConfigured() {
-  return getDatabaseUrl() !== null;
+  return hasDatabaseUrlConfigured() && !globalForDb.__turnoutDbDisabledReason;
+}
+
+export function getDatabaseDisabledReason() {
+  return globalForDb.__turnoutDbDisabledReason ?? null;
+}
+
+async function disableDatabase(reason: string) {
+  globalForDb.__turnoutDbDisabledReason = reason;
+  globalForDb.__turnoutDbSchemaReady = null;
+
+  const pools = [
+    globalForDb.__turnoutDbPool,
+    globalForDb.__turnoutDbBootstrapPool,
+  ];
+
+  globalForDb.__turnoutDbPool = null;
+  globalForDb.__turnoutDbBootstrapPool = null;
+
+  await Promise.allSettled(
+    pools
+      .filter((pool): pool is Pool => Boolean(pool))
+      .map((pool) => pool.end()),
+  );
 }
 
 function getPool() {
-  if (!isDatabaseConfigured()) {
+  if (!hasDatabaseUrlConfigured() || globalForDb.__turnoutDbDisabledReason) {
     return null;
   }
 
@@ -202,6 +230,11 @@ export async function query<T extends QueryResultRow = QueryResultRow>(
   }
 
   await ensureDatabaseSchema();
+
+  if (!isDatabaseConfigured()) {
+    throw new Error(getDatabaseDisabledReason() ?? "DATABASE_URL is not configured.");
+  }
+
   return pool.query<T>(sql, params);
 }
 
@@ -215,6 +248,11 @@ export async function withTransaction<T>(
   }
 
   await ensureDatabaseSchema();
+
+  if (!isDatabaseConfigured()) {
+    throw new Error(getDatabaseDisabledReason() ?? "DATABASE_URL is not configured.");
+  }
+
   const client = await pool.connect();
 
   try {
@@ -295,7 +333,7 @@ export async function ensureDatabaseSchema() {
     `,
   ];
 
-  if (!pool) {
+  if (!pool || globalForDb.__turnoutDbDisabledReason) {
     return;
   }
 
@@ -304,8 +342,7 @@ export async function ensureDatabaseSchema() {
       for (const statement of bootstrapStatements) {
         await pool.query(statement);
       }
-    })().catch((error) => {
-      globalForDb.__turnoutDbSchemaReady = null;
+    })().catch(async (error) => {
       const bootstrapCandidate =
         getBootstrapDatabaseCandidate() ?? getDatabaseCandidate();
       const bootstrapTarget = bootstrapCandidate?.name ?? "DATABASE_URL";
@@ -316,9 +353,10 @@ export async function ensureDatabaseSchema() {
           message.includes("statement timeout")
           ? " POSTGRES_URL_NON_POOLING appears to point at a Supabase pooler host. Use the direct database host for schema bootstrap, and keep the pooled connection in DATABASE_URL."
           : "";
-      throw new Error(
-        `Database bootstrap failed (${bootstrapTarget} / ${describeCandidateTarget(bootstrapCandidate)}): ${message}${advisory}`,
-      );
+      const reason = `Database bootstrap failed (${bootstrapTarget} / ${describeCandidateTarget(bootstrapCandidate)}): ${message}${advisory}`;
+
+      console.error("[db]", reason);
+      await disableDatabase(reason);
     });
   }
 
