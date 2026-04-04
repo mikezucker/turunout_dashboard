@@ -162,8 +162,12 @@ const IDLE_ROTATION_MS = Number(
 const WEATHER_POLL_INTERVAL_MS = Number(
   process.env.NEXT_PUBLIC_WEATHER_POLL_INTERVAL_MS ?? "300000",
 );
+const DISPATCH_POLL_INTERVAL_MS = Number(
+  process.env.NEXT_PUBLIC_POLL_INTERVAL_MS ?? "10000",
+);
 const STATS_POLL_INTERVAL_MS = 15 * 60 * 1000;
 const HEALTH_POLL_INTERVAL_MS = 60000;
+const DISPATCH_STREAM_RECONNECT_MS = 3000;
 const DISPATCH_TIME_ZONE = "America/New_York";
 const STATUS_BANNER_PERSIST_MS = 15000;
 const STALE_FEED_WARNING_MS = 90 * 1000;
@@ -952,8 +956,16 @@ export function DispatchDashboard() {
 
     let active = true;
     let eventSource: EventSource | null = null;
+    let reconnectTimeoutId: number | null = null;
+    let fetchInFlight = false;
 
-    async function loadInitialDispatches() {
+    async function loadDispatches() {
+      if (fetchInFlight) {
+        return;
+      }
+
+      fetchInFlight = true;
+
       try {
         const response = await fetch("/api/dispatches", { cache: "no-store" });
         const data = (await response.json()) as ApiResponse;
@@ -971,11 +983,47 @@ export function DispatchDashboard() {
         setMessage(
           error instanceof Error ? error.message : "Dispatch request failed.",
         );
+      } finally {
+        fetchInFlight = false;
       }
     }
 
+    function clearReconnectTimeout() {
+      if (reconnectTimeoutId !== null) {
+        window.clearTimeout(reconnectTimeoutId);
+        reconnectTimeoutId = null;
+      }
+    }
+
+    function scheduleStreamReconnect() {
+      if (!active || reconnectTimeoutId !== null) {
+        return;
+      }
+
+      reconnectTimeoutId = window.setTimeout(() => {
+        reconnectTimeoutId = null;
+
+        if (!active) {
+          return;
+        }
+
+        connectDispatchStream();
+      }, DISPATCH_STREAM_RECONNECT_MS);
+    }
+
     function connectDispatchStream() {
+      clearReconnectTimeout();
+      eventSource?.close();
       eventSource = new EventSource("/api/dispatch-stream");
+      eventSource.onopen = () => {
+        if (!active) {
+          return;
+        }
+
+        setMessage((current) =>
+          current === "Live dispatch stream reconnecting." ? null : current,
+        );
+      };
       eventSource.addEventListener("dispatch", (event) => {
         if (!active) {
           return;
@@ -989,15 +1037,34 @@ export function DispatchDashboard() {
           return;
         }
 
-        setMessage((current) => current ?? "Live dispatch stream reconnecting.");
+        setMessage("Live dispatch stream reconnecting.");
+        eventSource?.close();
+        scheduleStreamReconnect();
       };
     }
 
-    void loadInitialDispatches();
+    function refreshDispatchesIfVisible() {
+      if (document.visibilityState !== "visible") {
+        return;
+      }
+
+      void loadDispatches();
+    }
+
+    void loadDispatches();
     connectDispatchStream();
+    const pollIntervalId = window.setInterval(() => {
+      void loadDispatches();
+    }, DISPATCH_POLL_INTERVAL_MS);
+    window.addEventListener("focus", refreshDispatchesIfVisible);
+    document.addEventListener("visibilitychange", refreshDispatchesIfVisible);
 
     return () => {
       active = false;
+      clearReconnectTimeout();
+      window.clearInterval(pollIntervalId);
+      window.removeEventListener("focus", refreshDispatchesIfVisible);
+      document.removeEventListener("visibilitychange", refreshDispatchesIfVisible);
       eventSource?.close();
     };
   }, [unitId]);

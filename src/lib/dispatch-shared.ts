@@ -12,17 +12,17 @@ export type DispatchRecord = {
   raw: unknown;
 };
 
-const CLOSED_STATUSES = [
-  "closed",
-  "close",
-  "completed",
-  "complete",
-  "cleared",
-  "clear",
-  "cancelled",
-  "canceled",
-  "service complete",
-  "out of service",
+const CLOSED_STATUS_PATTERNS = [
+  /\bclosed?\b/i,
+  /\bcompleted?\b/i,
+  /\bcleared?\b/i,
+  /\bcancelled?\b/i,
+  /\bservice complete\b/i,
+  /\bincident complete\b/i,
+  /\bavailable\b/i,
+  /\bback in service\b/i,
+  /\breturn(?:ed)? to service\b/i,
+  /\bout of service\b/i,
 ];
 
 const STALE_OPEN_DISPATCH_MS = 12 * 60 * 60 * 1000;
@@ -36,6 +36,9 @@ const RESOLVED_MESSAGE_PATTERNS = [
   /\bservice complete\b/i,
   /\bincident complete\b/i,
   /\bcommand terminated\b/i,
+  /\bavailable\b/i,
+  /\bback in service\b/i,
+  /\breturn(?:ed)? to service\b/i,
 ];
 const SHORT_LIVED_CALL_TYPES = new Set([
   "ASSIST POLICE",
@@ -50,7 +53,7 @@ export function isClosedDispatchStatus(status: string | null) {
     return false;
   }
 
-  return CLOSED_STATUSES.includes(status.trim().toLowerCase());
+  return CLOSED_STATUS_PATTERNS.some((pattern) => pattern.test(status));
 }
 
 export function isResolvedDispatch(
