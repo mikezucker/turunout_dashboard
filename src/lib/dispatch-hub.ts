@@ -23,6 +23,8 @@ type DispatchHubState = {
   snapshot: DispatchSnapshot | null;
   signature: string | null;
   redis: RedisState | null;
+  consecutiveFailureCount: number;
+  lastScheduledPollIntervalMs: number | null;
   telemetry: DispatchHubTelemetry;
 };
 
@@ -37,6 +39,8 @@ type DispatchHubTelemetry = {
   lastError: string | null;
   lastResultMessage: string | null;
   lastUpstreamStatus: number | null;
+  lastPollIntervalMs?: number | null;
+  consecutiveFailureCount?: number;
 };
 
 type RedisState = {
@@ -50,6 +54,9 @@ type RedisState = {
 
 const DEFAULT_POLL_INTERVAL_MS = 2000;
 const DEFAULT_LOCK_TTL_MS = 15000;
+const MIN_REQUEST_REFRESH_INTERVAL_MS = 15000;
+const DEFAULT_MAX_BACKOFF_POLL_INTERVAL_MS = 60000;
+const POLL_JITTER_RATIO = 0.15;
 const globalForDispatchHub = globalThis as typeof globalThis & {
   __turnoutDispatchHub?: DispatchHubState;
 };
@@ -64,6 +71,24 @@ function getPollIntervalMs() {
   return Number.isFinite(parsedValue) && parsedValue > 0
     ? parsedValue
     : DEFAULT_POLL_INTERVAL_MS;
+}
+
+function parsePositiveNumber(rawValue: string | undefined, fallback: number) {
+  const parsedValue = Number(rawValue);
+
+  return Number.isFinite(parsedValue) && parsedValue > 0
+    ? parsedValue
+    : fallback;
+}
+
+function getMaxBackoffPollIntervalMs() {
+  return Math.max(
+    parsePositiveNumber(
+      process.env.FIRSTDUE_MAX_BACKOFF_POLL_INTERVAL_MS,
+      DEFAULT_MAX_BACKOFF_POLL_INTERVAL_MS,
+    ),
+    getPollIntervalMs(),
+  );
 }
 
 function getPollLockTtlMs() {
@@ -142,6 +167,8 @@ function getDispatchHubState(): DispatchHubState {
       snapshot: null,
       signature: null,
       redis: null,
+      consecutiveFailureCount: 0,
+      lastScheduledPollIntervalMs: null,
       telemetry: {
         lastRefreshStartedAt: null,
         lastRefreshCompletedAt: null,
@@ -192,6 +219,91 @@ function parseDispatchSnapshot(value: string | null) {
   }
 }
 
+function isSuccessfulSnapshot(snapshot: DispatchSnapshot | null) {
+  if (!snapshot) {
+    return false;
+  }
+
+  const status = snapshot.result.upstreamStatus;
+
+  return typeof status === "number" && status >= 200 && status < 300;
+}
+
+function snapshotAgeMs(snapshot: DispatchSnapshot | null, now = Date.now()) {
+  if (!snapshot) {
+    return null;
+  }
+
+  const fetchedAt = Date.parse(snapshot.fetchedAt);
+
+  if (Number.isNaN(fetchedAt)) {
+    return null;
+  }
+
+  return Math.max(0, now - fetchedAt);
+}
+
+function requestRefreshThresholdMs() {
+  return Math.max(getPollIntervalMs() * 2, MIN_REQUEST_REFRESH_INTERVAL_MS);
+}
+
+function shouldRefreshSnapshotOnRequest(snapshot: DispatchSnapshot | null) {
+  const ageMs = snapshotAgeMs(snapshot);
+
+  if (ageMs === null) {
+    return snapshot === null;
+  }
+
+  return ageMs >= requestRefreshThresholdMs();
+}
+
+function isSuccessfulResult(result: DispatchFetchResult) {
+  const status = result.upstreamStatus;
+
+  return typeof status === "number" && status >= 200 && status < 300;
+}
+
+function applyPollJitter(intervalMs: number) {
+  const jitterWindowMs = Math.round(intervalMs * POLL_JITTER_RATIO);
+
+  if (jitterWindowMs <= 0) {
+    return intervalMs;
+  }
+
+  const jitterOffsetMs = Math.round((Math.random() * 2 - 1) * jitterWindowMs);
+
+  return Math.max(1000, intervalMs + jitterOffsetMs);
+}
+
+function nextPollIntervalMs(state: DispatchHubState) {
+  const baseIntervalMs = getPollIntervalMs();
+  const maxBackoffIntervalMs = getMaxBackoffPollIntervalMs();
+
+  if (state.consecutiveFailureCount > 0) {
+    const backedOffIntervalMs = Math.min(
+      maxBackoffIntervalMs,
+      baseIntervalMs * 2 ** Math.min(state.consecutiveFailureCount, 6),
+    );
+
+    return applyPollJitter(backedOffIntervalMs);
+  }
+
+  return applyPollJitter(baseIntervalMs);
+}
+
+function scheduleNextDispatchRefresh(state: DispatchHubState) {
+  if (state.intervalId) {
+    clearTimeout(state.intervalId);
+  }
+
+  const intervalMs = nextPollIntervalMs(state);
+  state.lastScheduledPollIntervalMs = intervalMs;
+  state.intervalId = setTimeout(() => {
+    state.intervalId = null;
+    void refreshDispatchSnapshot();
+  }, intervalMs);
+}
+
 function applySnapshot(
   state: DispatchHubState,
   snapshot: DispatchSnapshot,
@@ -203,6 +315,20 @@ function applySnapshot(
   state.snapshot = snapshot;
   state.revision = snapshot.revision;
   state.signature = nextSignature;
+
+  if (isSuccessfulSnapshot(snapshot)) {
+    const previousSuccessAt = state.telemetry.lastSuccessfulFetchAt
+      ? Date.parse(state.telemetry.lastSuccessfulFetchAt)
+      : NaN;
+    const snapshotFetchedAt = Date.parse(snapshot.fetchedAt);
+
+    if (
+      Number.isFinite(snapshotFetchedAt) &&
+      (!Number.isFinite(previousSuccessAt) || snapshotFetchedAt > previousSuccessAt)
+    ) {
+      state.telemetry.lastSuccessfulFetchAt = snapshot.fetchedAt;
+    }
+  }
 
   if (shouldNotify && previousFetchedAt !== snapshot.fetchedAt) {
     publishSnapshot(state, snapshot);
@@ -452,6 +578,10 @@ async function fetchAndPersistSnapshot(state: DispatchHubState) {
       ? null
       : result.message;
 
+  state.consecutiveFailureCount = isSuccessfulResult(result)
+    ? 0
+    : state.consecutiveFailureCount + 1;
+
   if (result.upstreamStatus && result.upstreamStatus >= 200 && result.upstreamStatus < 300) {
     state.telemetry.lastSuccessfulFetchAt = completedAt;
   }
@@ -492,9 +622,6 @@ export function ensureDispatchPolling() {
     return;
   });
   void refreshDispatchSnapshot();
-  state.intervalId = setInterval(() => {
-    void refreshDispatchSnapshot();
-  }, getPollIntervalMs());
 }
 
 export async function refreshDispatchSnapshot() {
@@ -506,6 +633,7 @@ export async function refreshDispatchSnapshot() {
 
   state.inFlight = refreshWithSharedStore(state).finally(() => {
     state.inFlight = null;
+    scheduleNextDispatchRefresh(state);
   });
 
   return state.inFlight;
@@ -517,6 +645,14 @@ export async function getDispatchSnapshot() {
   const state = getDispatchHubState();
 
   if (state.snapshot) {
+    if (shouldRefreshSnapshotOnRequest(state.snapshot)) {
+      try {
+        return await refreshDispatchSnapshot();
+      } catch {
+        return state.snapshot;
+      }
+    }
+
     return state.snapshot;
   }
 
@@ -524,12 +660,29 @@ export async function getDispatchSnapshot() {
 
   if (persistedSnapshot) {
     applySnapshot(state, persistedSnapshot, false);
+
+    if (shouldRefreshSnapshotOnRequest(persistedSnapshot)) {
+      try {
+        return await refreshDispatchSnapshot();
+      } catch {
+        return persistedSnapshot;
+      }
+    }
+
     return persistedSnapshot;
   }
 
   const redisSnapshot = await loadRedisSnapshot(state);
 
   if (redisSnapshot) {
+    if (shouldRefreshSnapshotOnRequest(redisSnapshot)) {
+      try {
+        return await refreshDispatchSnapshot();
+      } catch {
+        return redisSnapshot;
+      }
+    }
+
     return redisSnapshot;
   }
 
@@ -572,6 +725,10 @@ export function getDispatchHubHealth() {
       publisherStatus: redis?.publisher.status ?? "disabled",
       subscriberStatus: redis?.subscriber.status ?? "disabled",
     },
-    telemetry: { ...state.telemetry },
+    telemetry: {
+      ...state.telemetry,
+      lastPollIntervalMs: state.lastScheduledPollIntervalMs,
+      consecutiveFailureCount: state.consecutiveFailureCount,
+    },
   };
 }

@@ -19,6 +19,42 @@ type DatabaseCandidate = {
   value: string;
 };
 
+function parseDatabaseUrl(candidate: string) {
+  try {
+    return new URL(candidate);
+  } catch {
+    return null;
+  }
+}
+
+function describeCandidateTarget(candidate: DatabaseCandidate | null) {
+  if (!candidate) {
+    return "no database URL configured";
+  }
+
+  const url = parseDatabaseUrl(candidate.value);
+
+  if (!url) {
+    return `${candidate.name} -> invalid URL`;
+  }
+
+  const host = url.hostname || "unknown-host";
+  const port = url.port || "5432";
+  const databaseName = url.pathname.replace(/^\//, "") || "unknown-db";
+
+  return `${candidate.name} -> ${host}:${port}/${databaseName}`;
+}
+
+function isLikelySupabasePooler(candidate: DatabaseCandidate | null) {
+  const url = candidate ? parseDatabaseUrl(candidate.value) : null;
+
+  if (!url) {
+    return false;
+  }
+
+  return url.hostname.endsWith(".pooler.supabase.com");
+}
+
 function getDatabaseCandidate() {
   const candidates = [
     ["DATABASE_URL", process.env.DATABASE_URL],
@@ -64,21 +100,7 @@ function getBootstrapDatabaseUrl() {
 }
 
 export function describeDatabaseTarget() {
-  const candidate = getDatabaseCandidate();
-
-  if (!candidate) {
-    return "no database URL configured";
-  }
-
-  try {
-    const url = new URL(candidate.value);
-    const host = url.hostname || "unknown-host";
-    const port = url.port || "5432";
-    const databaseName = url.pathname.replace(/^\//, "") || "unknown-db";
-    return `${candidate.name} -> ${host}:${port}/${databaseName}`;
-  } catch {
-    return `${candidate.name} -> invalid URL`;
-  }
+  return describeCandidateTarget(getDatabaseCandidate());
 }
 
 function getSanitizedDatabaseUrl() {
@@ -284,14 +306,18 @@ export async function ensureDatabaseSchema() {
       }
     })().catch((error) => {
       globalForDb.__turnoutDbSchemaReady = null;
-      const bootstrapTarget =
-        getBootstrapDatabaseCandidate()?.name ??
-        getDatabaseCandidate()?.name ??
-        "DATABASE_URL";
+      const bootstrapCandidate =
+        getBootstrapDatabaseCandidate() ?? getDatabaseCandidate();
+      const bootstrapTarget = bootstrapCandidate?.name ?? "DATABASE_URL";
       const message =
         error instanceof Error ? error.message : "Unknown database error";
+      const advisory =
+        isLikelySupabasePooler(bootstrapCandidate) &&
+          message.includes("statement timeout")
+          ? " POSTGRES_URL_NON_POOLING appears to point at a Supabase pooler host. Use the direct database host for schema bootstrap, and keep the pooled connection in DATABASE_URL."
+          : "";
       throw new Error(
-        `Database bootstrap failed (${bootstrapTarget} / ${describeDatabaseTarget()}): ${message}`,
+        `Database bootstrap failed (${bootstrapTarget} / ${describeCandidateTarget(bootstrapCandidate)}): ${message}${advisory}`,
       );
     });
   }

@@ -2015,6 +2015,9 @@ export function DispatchDashboard() {
   ]);
   const currentIdleScreen =
     idleScreens[idleScreenIndex % Math.max(idleScreens.length, 1)] ?? null;
+  const showIdleFeedStatus = Boolean(
+    unitId && staleFeedMessage && currentIdleScreen?.id === "health",
+  );
   useEffect(() => {
     if (primaryDispatch || !currentIdleScreen?.scrollable) {
       return;
@@ -2604,7 +2607,7 @@ export function DispatchDashboard() {
               <div className="xl:hidden">
                 <DepartmentLogo subtitle="Turnout Board" dark />
                 <p className="mt-3 text-sm text-white/68">{unit.displayName}</p>
-                {staleFeedMessage ? (
+                {showIdleFeedStatus ? (
                   <p className="mt-2 max-w-md text-sm leading-6 text-amber-100/86">
                     {staleFeedMessage}
                   </p>
@@ -2644,7 +2647,7 @@ export function DispatchDashboard() {
           </div>
         </div>
       ) : null}
-      {unitId && staleFeedMessage ? (
+      {showIdleFeedStatus ? (
         <div className="pointer-events-none absolute left-1/2 top-6 z-10 w-[min(1120px,calc(100%-3rem))] -translate-x-1/2">
           <div
             className={`rounded-[1.4rem] border px-5 py-4 text-center shadow-[0_12px_40px_rgba(0,0,0,0.28)] backdrop-blur ${

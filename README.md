@@ -31,9 +31,11 @@ Open [http://localhost:3000](http://localhost:3000) with your browser to see the
 - `FIRSTDUE_API_HEADER_NAME`: Header name for auth. Defaults to `Authorization`.
 - `FIRSTDUE_API_HEADER_VALUE`: Full header value, for example `Bearer abc123`.
 - `FIRSTDUE_TIMEOUT_MS`: Upstream request timeout in milliseconds.
-- `FIRSTDUE_POLL_INTERVAL_MS`: Server poll interval in milliseconds.
+- `FIRSTDUE_POLL_INTERVAL_MS`: Server poll interval in milliseconds. This is the normal steady-state cadence for live dispatch pickup.
+- `FIRSTDUE_MAX_BACKOFF_POLL_INTERVAL_MS`: Maximum temporary backoff interval after repeated upstream failures. Defaults to `60000`.
 - `FIRSTDUE_POLL_LOCK_TTL_MS`: Redis lease time for the active poller instance.
-- `DATABASE_URL`: Postgres connection string for durable snapshots, incidents, and event history.
+- `DATABASE_URL`: Postgres connection string for durable snapshots, incidents, and event history. In hosted setups this can be the pooled connection.
+- `POSTGRES_URL_NON_POOLING`: Optional direct Postgres connection string used for schema bootstrap and DDL. On Supabase this should be the direct database host, not `*.pooler.supabase.com`.
 - `DISPATCH_RETENTION_DAYS`: Number of days to keep persisted dispatch data. Defaults to `30`.
 - `REDIS_URL`: Redis connection string for cross-instance snapshot sharing and pub/sub.
 - `REDIS_KEY_PREFIX`: Optional Redis key prefix. Defaults to `turnout`.
