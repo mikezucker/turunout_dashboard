@@ -331,6 +331,15 @@ export async function ensureDatabaseSchema() {
       CREATE INDEX IF NOT EXISTS dispatch_events_fetched_at_idx
         ON dispatch_events (fetched_at DESC)
     `,
+    `
+      ALTER TABLE dispatch_snapshots ENABLE ROW LEVEL SECURITY
+    `,
+    `
+      ALTER TABLE dispatch_incidents ENABLE ROW LEVEL SECURITY
+    `,
+    `
+      ALTER TABLE dispatch_events ENABLE ROW LEVEL SECURITY
+    `,
   ];
 
   if (!pool || globalForDb.__turnoutDbDisabledReason) {
