@@ -10,6 +10,7 @@ export type UnitProfile = {
   apparatusApiId?: string;
   dispatchAliases?: string[];
   coverageUnitId?: string;
+  memberUnitIds?: string[];
   radioName: string;
   notes: string[];
   assignments: string[];
@@ -30,6 +31,8 @@ export type SerializedUnitProfile = Omit<UnitProfile, "password"> & {
   weatherRadarPageUrl: string | null;
   weatherIsLive: boolean;
   coverageDisplayName: string | null;
+  memberUnitDisplayNames: string[];
+  scopeKind: "apparatus" | "station";
 };
 
 const SESSION_COOKIE = "turnout_unit_session";
@@ -128,6 +131,12 @@ export function getUnitProfiles(): UnitProfile[] {
             candidate.coverageUnitId.trim()
               ? candidate.coverageUnitId.trim()
               : undefined,
+          memberUnitIds: Array.isArray(candidate.memberUnitIds)
+            ? candidate.memberUnitIds.filter(
+                (memberUnitId): memberUnitId is string =>
+                  typeof memberUnitId === "string" && memberUnitId.trim().length > 0,
+              )
+            : [],
           radioName:
             typeof candidate.radioName === "string"
               ? candidate.radioName
@@ -199,8 +208,70 @@ export function getCoverageUnit(unit: UnitProfile | null) {
 }
 
 export function getEffectiveApparatusApiId(unit: UnitProfile | null) {
+  return getEffectiveApparatusApiIds(unit)[0];
+}
+
+function resolveUnitGroup(
+  unit: UnitProfile | null,
+  seen = new Set<string>(),
+): UnitProfile[] {
+  if (!unit || seen.has(unit.id)) {
+    return [];
+  }
+
+  seen.add(unit.id);
+
+  const units = [unit];
   const coverageUnit = getCoverageUnit(unit);
-  return coverageUnit?.apparatusApiId ?? unit?.apparatusApiId;
+
+  if (coverageUnit && !seen.has(coverageUnit.id)) {
+    units.push(...resolveUnitGroup(coverageUnit, seen));
+  }
+
+  for (const memberUnitId of unit.memberUnitIds ?? []) {
+    const memberUnit = getUnitProfile(memberUnitId);
+
+    if (memberUnit && !seen.has(memberUnit.id)) {
+      units.push(...resolveUnitGroup(memberUnit, seen));
+    }
+  }
+
+  return units;
+}
+
+export function getEffectiveApparatusApiIds(unit: UnitProfile | null) {
+  const ids = new Set<string>();
+
+  for (const candidate of resolveUnitGroup(unit)) {
+    if (candidate.apparatusApiId) {
+      ids.add(candidate.apparatusApiId);
+    }
+  }
+
+  return [...ids];
+}
+
+export function getWorkOrderTargets(unit: UnitProfile | null) {
+  const targets = new Map<
+    string,
+    {
+      apparatusApiId: string;
+      displayName: string;
+    }
+  >();
+
+  for (const candidate of resolveUnitGroup(unit)) {
+    if (!candidate.apparatusApiId) {
+      continue;
+    }
+
+    targets.set(candidate.apparatusApiId, {
+      apparatusApiId: candidate.apparatusApiId,
+      displayName: candidate.displayName,
+    });
+  }
+
+  return [...targets.values()];
 }
 
 function deriveDispatchAliases(
@@ -240,9 +311,7 @@ export function getDispatchAliasTokens(unit: UnitProfile | null) {
     return [];
   }
 
-  const coverageUnit = getCoverageUnit(unit);
-
-  for (const candidate of [unit, coverageUnit]) {
+  for (const candidate of resolveUnitGroup(unit)) {
     if (!candidate) {
       continue;
     }
@@ -317,6 +386,9 @@ export function serializeUnitProfile(
   weather?: LiveWeatherData | null,
 ): SerializedUnitProfile {
   const coverageUnit = getCoverageUnit(unit);
+  const memberUnits = (unit.memberUnitIds ?? [])
+    .map((memberUnitId) => getUnitProfile(memberUnitId))
+    .filter((candidate): candidate is UnitProfile => candidate !== null);
 
   return {
     id: unit.id,
@@ -341,5 +413,7 @@ export function serializeUnitProfile(
     weatherIsLive: weather?.isLive ?? false,
     openWorkOrders: unit.openWorkOrders,
     coverageDisplayName: coverageUnit?.displayName ?? null,
+    memberUnitDisplayNames: memberUnits.map((memberUnit) => memberUnit.displayName),
+    scopeKind: memberUnits.length > 0 ? "station" : "apparatus",
   };
 }
