@@ -150,8 +150,12 @@ function easternYearStartSinceIso(now = new Date()) {
   return `${year}-01-01T05:00:00Z`;
 }
 
+function formatSinceIso(date: Date) {
+  return date.toISOString().replace(/\.\d{3}Z$/, "Z");
+}
+
 function daysAgoIso(days: number, now = new Date()) {
-  return new Date(now.getTime() - days * 24 * 60 * 60 * 1000).toISOString();
+  return formatSinceIso(new Date(now.getTime() - days * 24 * 60 * 60 * 1000));
 }
 
 function buildStatsUrl(baseUrl: string, page: number, sinceIso: string) {
