@@ -150,8 +150,12 @@ function easternYearStartSinceIso(now = new Date()) {
   return `${year}-01-01T05:00:00Z`;
 }
 
+function formatSinceIso(date: Date) {
+  return date.toISOString().replace(/\.\d{3}Z$/, "Z");
+}
+
 function daysAgoIso(days: number, now = new Date()) {
-  return new Date(now.getTime() - days * 24 * 60 * 60 * 1000).toISOString();
+  return formatSinceIso(new Date(now.getTime() - days * 24 * 60 * 60 * 1000));
 }
 
 function buildStatsUrl(baseUrl: string, page: number, sinceIso: string) {
@@ -319,7 +323,7 @@ async function fetchPersistedYearStatsFallback(
   }
 }
 
-async function fetchRollingDispatchWindows(unit: UnitMatcher | null) {
+async function fetchPersistedRollingDispatchWindows(unit: UnitMatcher | null) {
   if (!isDatabaseConfigured()) {
     return {
       rollingWindows: emptyRollingWindowSummary(null),
@@ -363,6 +367,78 @@ async function fetchRollingDispatchWindows(unit: UnitMatcher | null) {
 
     return {
       rollingWindows: emptyRollingWindowSummary("Persisted incident history unavailable"),
+      message: `Recent windows unavailable. ${reason}`,
+    };
+  }
+}
+
+async function fetchLiveRollingDispatchWindows(
+  unit: UnitMatcher | null,
+  apiUrl: string,
+  headers: Record<string, string>,
+) {
+  const maxDays = Math.max(...ROLLING_WINDOWS.map((window) => window.days));
+  const sinceIso = daysAgoIso(maxDays);
+
+  try {
+    const first = await fetchDispatchPage(buildStatsUrl(apiUrl, 1, sinceIso), headers);
+
+    if (!first.response.ok) {
+      return {
+        rollingWindows: emptyRollingWindowSummary(describeSource(apiUrl)),
+        message: describeFirstDueHttpFailure(first.response.status, first.payload),
+      };
+    }
+
+    const dispatches = [...first.dispatches];
+    const lastPage = parseLastPageFromLinkHeader(first.response.headers.get("link"));
+
+    for (let page = 2; page <= lastPage; page += 1) {
+      const current = await fetchDispatchPage(buildStatsUrl(apiUrl, page, sinceIso), headers);
+
+      if (!current.response.ok) {
+        return {
+          rollingWindows: emptyRollingWindowSummary(describeSource(apiUrl)),
+          message: describeFirstDueHttpFailure(current.response.status, current.payload),
+        };
+      }
+
+      dispatches.push(...current.dispatches);
+    }
+
+    const sourceLabel = describeSource(apiUrl);
+
+    return {
+      rollingWindows: ROLLING_WINDOWS.map((window) => {
+        const threshold = Date.parse(daysAgoIso(window.days));
+        const filtered = dispatches.filter((dispatch) => {
+          const timestamp = dispatch.lastActivityAt ?? dispatch.dispatchedAt ?? null;
+
+          if (!timestamp) {
+            return false;
+          }
+
+          const parsed = Date.parse(timestamp);
+          return Number.isFinite(parsed) && parsed >= threshold;
+        });
+
+        return buildRollingWindowSummary(
+          window.label,
+          window.days,
+          filtered,
+          unit,
+          sourceLabel,
+        );
+      }),
+      message: null,
+    };
+  } catch (error) {
+    const reason =
+      error instanceof Error ? error.message : "Live rolling windows unavailable.";
+    console.error("[stats] live rolling windows unavailable", reason);
+
+    return {
+      rollingWindows: emptyRollingWindowSummary(describeSource(apiUrl)),
       message: `Recent windows unavailable. ${reason}`,
     };
   }
@@ -431,27 +507,28 @@ export async function fetchDispatchStats(
 ): Promise<DispatchStatsResult> {
   const year = new Date().getFullYear();
   const sinceIso = easternYearStartSinceIso();
-  const {
-    rollingWindows,
-    message: rollingWindowsMessage,
-  } = await fetchRollingDispatchWindows(unit);
-  const persistedYearStats = await fetchPersistedYearStatsFallback(
-    unit,
-    year,
-    sinceIso,
-    rollingWindows,
-    rollingWindowsMessage,
-    null,
-  );
-
-  if (persistedYearStats) {
-    return persistedYearStats;
-  }
-
   const headers = getFirstDueAuthHeaders();
   const apiUrl = getFirstDueApiUrl();
 
   if (!headers || !apiUrl) {
+    const {
+      rollingWindows,
+      message: rollingWindowsMessage,
+    } = await fetchPersistedRollingDispatchWindows(unit);
+
+    const persistedYearStats = await fetchPersistedYearStatsFallback(
+      unit,
+      year,
+      sinceIso,
+      rollingWindows,
+      rollingWindowsMessage,
+      null,
+    );
+
+    if (persistedYearStats) {
+      return persistedYearStats;
+    }
+
     return unavailableStatsResult({
       year,
       message: joinMessages(rollingWindowsMessage, "FirstDue auth is not configured."),
@@ -459,6 +536,24 @@ export async function fetchDispatchStats(
       rollingWindows,
     });
   }
+
+  const {
+    rollingWindows,
+    message: liveRollingWindowsMessage,
+  } = await fetchLiveRollingDispatchWindows(unit, apiUrl, headers);
+  const {
+    rollingWindows: persistedRollingWindows,
+    message: persistedRollingWindowsMessage,
+  } = liveRollingWindowsMessage
+    ? await fetchPersistedRollingDispatchWindows(unit)
+    : { rollingWindows, message: null };
+  const effectiveRollingWindows = liveRollingWindowsMessage
+    ? persistedRollingWindows
+    : rollingWindows;
+  const rollingWindowsMessage = joinMessages(
+    liveRollingWindowsMessage,
+    persistedRollingWindowsMessage,
+  );
 
   async function unavailableWithPersistedFallback(
     message: string,
@@ -468,7 +563,7 @@ export async function fetchDispatchStats(
       unit,
       year,
       sinceIso,
-      rollingWindows,
+      effectiveRollingWindows,
       rollingWindowsMessage,
       message,
     );
@@ -481,7 +576,7 @@ export async function fetchDispatchStats(
       year,
       message: joinMessages(rollingWindowsMessage, message),
       sourceLabel,
-      rollingWindows,
+      rollingWindows: effectiveRollingWindows,
     });
   }
 
@@ -551,7 +646,7 @@ export async function fetchDispatchStats(
       year,
       message: joinMessages(rollingWindowsMessage, classificationMessage),
       sourceLabel: describeSource(apiUrl),
-      rollingWindows,
+      rollingWindows: effectiveRollingWindows,
       totalDepartmentCalls,
       totalApparatusCalls,
       emsCalls,
