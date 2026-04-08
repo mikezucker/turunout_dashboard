@@ -12,7 +12,12 @@ export async function GET() {
 
   if (!unitId) {
     return NextResponse.json(
-      { ok: false, message: "Not authenticated.", workOrders: [] },
+      {
+        ok: false,
+        message: "Not authenticated.",
+        workOrders: [],
+        workOrderGroups: [],
+      },
       { status: 401 },
     );
   }

@@ -1,10 +1,16 @@
 import { getFirstDueAuthHeaders } from "@/lib/firstdue-env";
-import { getEffectiveApparatusApiId, getUnitProfile } from "@/lib/unit-session";
+import { getUnitProfile, getWorkOrderTargets } from "@/lib/unit-session";
 
 type WorkOrderRecord = {
   id: string;
   title: string;
   status: string | null;
+};
+
+type WorkOrderGroup = {
+  apparatusApiId: string;
+  displayName: string;
+  workOrders: WorkOrderRecord[];
 };
 
 type Dictionary = Record<string, unknown>;
@@ -138,12 +144,13 @@ export async function fetchUnitWorkOrders(unitId: string) {
       ok: false,
       message: "Unit not found.",
       workOrders: [] as WorkOrderRecord[],
+      workOrderGroups: [] as WorkOrderGroup[],
     };
   }
 
-  const apparatusApiId = getEffectiveApparatusApiId(unit);
+  const workOrderTargets = getWorkOrderTargets(unit);
 
-  if (!apparatusApiId) {
+  if (workOrderTargets.length === 0) {
     return {
       ok: true,
       message: "Set apparatusApiId in UNIT_ACCOUNTS_JSON to load live work orders.",
@@ -152,6 +159,7 @@ export async function fetchUnitWorkOrders(unitId: string) {
         title,
         status: null,
       })),
+      workOrderGroups: [] as WorkOrderGroup[],
     };
   }
 
@@ -162,23 +170,36 @@ export async function fetchUnitWorkOrders(unitId: string) {
       ok: false,
       message: "FirstDue auth is not configured.",
       workOrders: [] as WorkOrderRecord[],
+      workOrderGroups: [] as WorkOrderGroup[],
     };
   }
 
   try {
-    const response = await fetch(
-      `https://sizeup.firstduesizeup.com/fd-api/v1/apparatuses/${apparatusApiId}/work-orders`,
-      {
-        headers,
-        cache: "no-store",
-        signal: AbortSignal.timeout(12000),
-      },
-    );
-    const body = await response.text();
-    const payload = parsePayload(body, response.headers.get("content-type") ?? "");
+    const responses = await Promise.all(
+      workOrderTargets.map(async (target) => {
+        const response = await fetch(
+          `https://sizeup.firstduesizeup.com/fd-api/v1/apparatuses/${target.apparatusApiId}/work-orders`,
+          {
+            headers,
+            cache: "no-store",
+            signal: AbortSignal.timeout(12000),
+          },
+        );
+        const body = await response.text();
+        const payload = parsePayload(body, response.headers.get("content-type") ?? "");
 
-    if (!response.ok) {
-      const record = asDictionary(payload);
+        return {
+          response,
+          payload,
+          target,
+        };
+      }),
+    );
+
+    const failedResponse = responses.find(({ response }) => !response.ok);
+
+    if (failedResponse) {
+      const record = asDictionary(failedResponse.payload);
       const message =
         (record && pickString(record, ["message", "error"])) ??
         "Failed to load apparatus work orders.";
@@ -191,18 +212,40 @@ export async function fetchUnitWorkOrders(unitId: string) {
           title,
           status: null,
         })),
+        workOrderGroups: [] as WorkOrderGroup[],
       };
     }
 
-    const workOrders = normalizeWorkOrders(payload).filter(
-      (workOrder) => !isExcludedWorkOrder(workOrder),
-    );
+    const workOrderGroups = responses.map(({ payload, target }) => ({
+      apparatusApiId: target.apparatusApiId,
+      displayName: target.displayName,
+      workOrders: normalizeWorkOrders(payload).filter(
+        (workOrder) => !isExcludedWorkOrder(workOrder),
+      ),
+    }));
+
+    const workOrders = workOrderGroups
+      .flatMap((group) =>
+        group.workOrders.map((workOrder) => ({
+          ...workOrder,
+          id: `${group.apparatusApiId}:${workOrder.id}`,
+          title:
+            workOrderTargets.length > 1
+              ? `${group.displayName} - ${workOrder.title}`
+              : workOrder.title,
+        })),
+      );
 
     return {
       ok: true,
       message:
-        workOrders.length > 0 ? null : "There are no active work orders for this apparatus.",
+        workOrders.length > 0
+          ? null
+          : workOrderTargets.length > 1
+          ? "There are no active work orders for these apparatus."
+          : "There are no active work orders for this apparatus.",
       workOrders,
+      workOrderGroups,
     };
   } catch (error) {
     const message =
@@ -216,6 +259,7 @@ export async function fetchUnitWorkOrders(unitId: string) {
         title,
         status: null,
       })),
+      workOrderGroups: [] as WorkOrderGroup[],
     };
   }
 }

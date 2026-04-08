@@ -38,6 +38,15 @@ type WorkOrdersResponse = {
     title: string;
     status: string | null;
   }>;
+  workOrderGroups: Array<{
+    apparatusApiId: string;
+    displayName: string;
+    workOrders: Array<{
+      id: string;
+      title: string;
+      status: string | null;
+    }>;
+  }>;
 };
 
 type ScheduleResponse = {
@@ -766,6 +775,9 @@ export function DispatchDashboard() {
   const [workOrders, setWorkOrders] = useState<
     Array<{ id: string; title: string; status: string | null }>
   >([]);
+  const [workOrderGroups, setWorkOrderGroups] = useState<
+    WorkOrdersResponse["workOrderGroups"]
+  >([]);
   const [workOrdersMessage, setWorkOrdersMessage] = useState<string | null>(null);
   const [scheduleDate, setScheduleDate] = useState<string | null>(null);
   const [scheduleEntries, setScheduleEntries] = useState<
@@ -809,6 +821,16 @@ export function DispatchDashboard() {
   const stickyMessageTimeoutRef = useRef<number | null>(null);
   const unitId = unit?.id ?? null;
   const unitApparatusApiId = unit?.apparatusApiId ?? null;
+  const isStationScope = unit?.scopeKind === "station";
+  const unitScopeLabel = isStationScope ? "Station" : "Unit";
+  const responseLabel = isStationScope ? "Company" : "Apparatus";
+  const responseLabelPlural = isStationScope ? "companies" : "apparatus";
+  const unitMembershipSummary =
+    unit?.memberUnitDisplayNames.length
+      ? unit.memberUnitDisplayNames.join(" / ")
+      : unit
+        ? `${unit.apparatus} / ${unit.station} / ${unit.radioName}`
+        : "";
 
   function applyDispatchUpdate(data: ApiResponse) {
     setConfigured(data.configured);
@@ -1072,6 +1094,7 @@ export function DispatchDashboard() {
   useEffect(() => {
     if (!unitId) {
       setWorkOrders([]);
+      setWorkOrderGroups([]);
       setWorkOrdersMessage(null);
       return;
     }
@@ -1090,6 +1113,7 @@ export function DispatchDashboard() {
         }
 
         setWorkOrders(data.workOrders);
+        setWorkOrderGroups(data.workOrderGroups);
         setWorkOrdersMessage(data.message);
       } catch (error) {
         if (!active) {
@@ -1097,6 +1121,7 @@ export function DispatchDashboard() {
         }
 
         setWorkOrders([]);
+        setWorkOrderGroups([]);
         setWorkOrdersMessage(
           error instanceof Error ? error.message : "Failed to load work orders.",
         );
@@ -1469,18 +1494,35 @@ export function DispatchDashboard() {
             },
           ];
 
-    return [
-      {
-        id: "work-orders",
+    const workOrderScreenGroups =
+      workOrderGroups.length > 1
+        ? workOrderGroups
+        : [
+            {
+              apparatusApiId: unit.apparatusApiId ?? unit.id,
+              displayName: unit.displayName,
+              workOrders,
+            },
+          ];
+
+    const workOrderScreens = workOrderScreenGroups.map((group) => {
+      const hasMultipleGroups = workOrderScreenGroups.length > 1;
+
+      return {
+        id: `work-orders:${group.apparatusApiId}`,
         label: "Work Orders",
-        eyebrow: "Maintenance Queue",
-        title: `${unit.displayName} Apparatus Work Orders`,
-        description: `${
-          workOrders.length
-        } item${workOrders.length === 1 ? "" : "s"} currently open for this unit.${
-          unit.coverageDisplayName ? ` Covered by ${unit.coverageDisplayName}.` : ""
-        }`,
-        contentVersion: `work-orders:${workOrders.length}:${workOrdersMessage ?? ""}`,
+        eyebrow: hasMultipleGroups ? `${group.displayName} Queue` : "Maintenance Queue",
+        title: hasMultipleGroups
+          ? `${group.displayName} Work Orders`
+          : `${unit.displayName} ${responseLabel} Work Orders`,
+        description: hasMultipleGroups
+          ? `${group.workOrders.length} item${group.workOrders.length === 1 ? "" : "s"} currently open for ${group.displayName}.`
+          : `${
+              workOrders.length
+            } item${workOrders.length === 1 ? "" : "s"} currently open for this ${isStationScope ? "station" : "unit"}.${
+              unit.coverageDisplayName ? ` Covered by ${unit.coverageDisplayName}.` : ""
+            }`,
+        contentVersion: `work-orders:${group.apparatusApiId}:${group.workOrders.length}:${workOrdersMessage ?? ""}`,
         scrollable: true,
         backgroundStyle: {
           background:
@@ -1500,10 +1542,10 @@ export function DispatchDashboard() {
           <div className="grid h-full min-h-0 gap-5 xl:grid-cols-[minmax(0,1.3fr)_minmax(320px,0.7fr)]">
             <div ref={workOrdersListRef} className="min-h-0 overflow-y-auto pr-3">
               <ul className="grid gap-4">
-                {workOrders.length > 0 ? (
-                  workOrders.map((order) => (
+                {group.workOrders.length > 0 ? (
+                  group.workOrders.map((order) => (
                     <li
-                      key={order.id}
+                      key={`${group.apparatusApiId}:${order.id}`}
                       className="rounded-[1.8rem] border border-white/12 bg-white/6 px-8 py-7"
                     >
                       <p className="text-[2.15rem] font-medium leading-tight text-white">{order.title}</p>
@@ -1520,7 +1562,9 @@ export function DispatchDashboard() {
                       Queue Clear
                     </p>
                     <p className="mt-4 text-[2.15rem] font-medium leading-tight text-white">
-                      There are no active work orders for this apparatus.
+                      {hasMultipleGroups
+                        ? `There are no active work orders for ${group.displayName}.`
+                        : `There are no active work orders for ${isStationScope ? "these apparatus" : "this apparatus"}.`}
                     </p>
                   </li>
                 )}
@@ -1531,17 +1575,23 @@ export function DispatchDashboard() {
                 Queue Status
               </p>
               <p className="mt-5 text-[5.25rem] font-semibold tracking-[-0.06em] text-white">
-                {workOrders.length}
+                {group.workOrders.length}
               </p>
               <p className="mt-3 text-xl text-white/72">Open work orders</p>
               <p className="mt-8 text-lg leading-8 text-white/72">
                 {workOrdersMessage ??
-                  "Work orders are loading from the configured apparatus feed."}
+                  (hasMultipleGroups
+                    ? `Work orders are loading from the configured ${group.displayName} feed.`
+                    : `Work orders are loading from the configured ${isStationScope ? "station company" : "apparatus"} feed.`)}
               </p>
             </div>
           </div>
         ),
-      },
+      };
+    });
+
+    return [
+      ...workOrderScreens,
       {
         id: "weather",
         label: "Weather",
@@ -1743,7 +1793,7 @@ export function DispatchDashboard() {
         title: `${statsYear} Call Statistics`,
         description:
           statsMessage ??
-          `Year-to-date department call volume with ${unit.displayName} apparatus totals, plus rolling recent windows from persisted incident history.`,
+          `Year-to-date department call volume with ${unit.displayName} ${responseLabel.toLowerCase()} totals, plus rolling recent windows from FirstDue history.`,
         contentVersion: `stats:${statsYear}:${totalDepartmentCalls}:${totalApparatusCalls}:${emsCalls}:${fireRescueCalls}:${rollingWindows.map((window) => `${window.days}:${window.totalDepartmentCalls}:${window.totalApparatusCalls}`).join("|")}:${statsMessage ?? ""}`,
         backgroundStyle: {
           background:
@@ -1772,7 +1822,7 @@ export function DispatchDashboard() {
               </div>
               <div className="self-start rounded-[2rem] border border-white/12 bg-white/7 px-8 py-7">
                 <p className="font-mono text-sm uppercase tracking-[0.28em] text-white/56">
-                  Total Apparatus Calls
+                  {`Total ${responseLabel} Calls`}
                 </p>
                 <p className="mt-4 text-[5.1rem] font-semibold tracking-[-0.06em] text-white">
                   {statsUnavailable ? "Unavailable" : totalApparatusCalls}
@@ -1815,7 +1865,7 @@ export function DispatchDashboard() {
                 </div>
                 <div className="rounded-[1.5rem] border border-white/10 bg-white/6 px-5 py-5">
                   <p className="font-mono text-xs uppercase tracking-[0.22em] text-white/54">
-                    Apparatus Share
+                    {`${responseLabel} Share`}
                   </p>
                   <p className="mt-3 text-[1.9rem] font-medium leading-tight text-white">
                     {statsUnavailable
@@ -1841,7 +1891,7 @@ export function DispatchDashboard() {
                               {window.label}
                             </p>
                             <p className="mt-1 text-sm text-white/62">
-                              {window.totalDepartmentCalls} dept. / {window.totalApparatusCalls} apparatus
+                              {window.totalDepartmentCalls} dept. / {window.totalApparatusCalls} {responseLabelPlural}
                             </p>
                           </div>
                           <p className="font-mono text-xs uppercase tracking-[0.18em] text-white/48">
@@ -2007,10 +2057,14 @@ export function DispatchDashboard() {
     totalApparatusCalls,
     totalDepartmentCalls,
     unit,
+    isStationScope,
+    responseLabel,
+    responseLabelPlural,
     flashingWeatherAlert,
     weatherFactors,
     activeWeatherRadarImageUrl,
     workOrders,
+    workOrderGroups,
     workOrdersMessage,
   ]);
   const currentIdleScreen =
@@ -2030,7 +2084,7 @@ export function DispatchDashboard() {
     }
 
     const scrollContainer =
-      currentIdleScreen.id === "work-orders"
+      currentIdleScreen.id.startsWith("work-orders:")
         ? workOrdersListRef.current ?? container
         : container;
 
@@ -2198,6 +2252,7 @@ export function DispatchDashboard() {
       setDispatches([]);
       setFeaturedDispatch(null);
       setWorkOrders([]);
+      setWorkOrderGroups([]);
       setWorkOrdersMessage(null);
       setScheduleDate(null);
       setScheduleEntries([]);
@@ -2327,11 +2382,11 @@ export function DispatchDashboard() {
                   <UnitBrandBlock unit={unit} />
                 </div>
                 <p className="mt-3 font-mono text-xs uppercase tracking-[0.28em] text-white/44">
-                  Unit
+                  {unitScopeLabel}
                 </p>
                 <p className="mt-2 text-[2.2rem] font-medium text-white">{unit.displayName}</p>
                 <p className="mt-1 text-lg text-white/64">
-                  {unit.apparatus} / {unit.station} / {unit.radioName}
+                  {unitMembershipSummary}
                 </p>
                 {unit.coverageDisplayName ? (
                   <p className="mt-2 text-sm text-amber-100/78">
@@ -2580,11 +2635,11 @@ export function DispatchDashboard() {
                   <UnitBrandBlock unit={unit} />
                 </div>
                 <p className="mt-3 font-mono text-xs uppercase tracking-[0.28em] text-white/44">
-                  Unit
+                  {unitScopeLabel}
                 </p>
                 <p className="mt-2 text-[1.9rem] font-medium text-white">{unit.displayName}</p>
                 <p className="mt-1 text-base text-white/64">
-                  {unit.apparatus} / {unit.station} / {unit.radioName}
+                  {unitMembershipSummary}
                 </p>
                 {unit.coverageDisplayName ? (
                   <p className="mt-2 text-sm text-amber-100/78">
