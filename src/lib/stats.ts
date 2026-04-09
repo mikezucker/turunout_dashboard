@@ -18,6 +18,7 @@ import {
 type UnitMatcher = {
   id: string;
   displayName: string;
+  station?: string;
   apparatus: string;
   apparatusApiId?: string;
   radioName: string;
