@@ -171,7 +171,7 @@ const IDLE_ROTATION_MS = Number(
 const WEATHER_POLL_INTERVAL_MS = Number(
   process.env.NEXT_PUBLIC_WEATHER_POLL_INTERVAL_MS ?? "300000",
 );
-const DISPATCH_POLL_INTERVAL_MS = Number(
+const DISPATCH_FALLBACK_POLL_INTERVAL_MS = Number(
   process.env.NEXT_PUBLIC_POLL_INTERVAL_MS ?? "10000",
 );
 const STATS_POLL_INTERVAL_MS = 15 * 60 * 1000;
@@ -980,6 +980,7 @@ export function DispatchDashboard() {
     let eventSource: EventSource | null = null;
     let reconnectTimeoutId: number | null = null;
     let fetchInFlight = false;
+    let streamConnected = false;
 
     async function loadDispatches() {
       if (fetchInFlight) {
@@ -1036,12 +1037,14 @@ export function DispatchDashboard() {
     function connectDispatchStream() {
       clearReconnectTimeout();
       eventSource?.close();
+      streamConnected = false;
       eventSource = new EventSource("/api/dispatch-stream");
       eventSource.onopen = () => {
         if (!active) {
           return;
         }
 
+        streamConnected = true;
         setMessage((current) =>
           current === "Live dispatch stream reconnecting." ? null : current,
         );
@@ -1059,34 +1062,50 @@ export function DispatchDashboard() {
           return;
         }
 
+        streamConnected = false;
         setMessage("Live dispatch stream reconnecting.");
         eventSource?.close();
         scheduleStreamReconnect();
       };
     }
 
-    function refreshDispatchesIfVisible() {
-      if (document.visibilityState !== "visible") {
+    function refreshDispatchesIfVisible(force = false) {
+      if (!force && document.visibilityState !== "visible") {
         return;
       }
 
       void loadDispatches();
     }
 
+    function refreshDispatchesIfStreamUnavailable() {
+      if (streamConnected) {
+        return;
+      }
+
+      refreshDispatchesIfVisible();
+    }
+
     void loadDispatches();
     connectDispatchStream();
     const pollIntervalId = window.setInterval(() => {
-      void loadDispatches();
-    }, DISPATCH_POLL_INTERVAL_MS);
-    window.addEventListener("focus", refreshDispatchesIfVisible);
-    document.addEventListener("visibilitychange", refreshDispatchesIfVisible);
+      refreshDispatchesIfStreamUnavailable();
+    }, DISPATCH_FALLBACK_POLL_INTERVAL_MS);
+    const refreshOnFocus = () => {
+      refreshDispatchesIfVisible(true);
+    };
+    const refreshOnVisibilityChange = () => {
+      refreshDispatchesIfVisible();
+    };
+    window.addEventListener("focus", refreshOnFocus);
+    document.addEventListener("visibilitychange", refreshOnVisibilityChange);
 
     return () => {
       active = false;
+      streamConnected = false;
       clearReconnectTimeout();
       window.clearInterval(pollIntervalId);
-      window.removeEventListener("focus", refreshDispatchesIfVisible);
-      document.removeEventListener("visibilitychange", refreshDispatchesIfVisible);
+      window.removeEventListener("focus", refreshOnFocus);
+      document.removeEventListener("visibilitychange", refreshOnVisibilityChange);
       eventSource?.close();
     };
   }, [unitId]);

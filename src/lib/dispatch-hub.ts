@@ -310,7 +310,7 @@ function applySnapshot(
   shouldNotify: boolean,
 ) {
   const nextSignature = buildDispatchSignature(snapshot.result);
-  const previousFetchedAt = state.snapshot?.fetchedAt ?? null;
+  const previousRevision = state.snapshot?.revision ?? null;
 
   state.snapshot = snapshot;
   state.revision = snapshot.revision;
@@ -330,7 +330,7 @@ function applySnapshot(
     }
   }
 
-  if (shouldNotify && previousFetchedAt !== snapshot.fetchedAt) {
+  if (shouldNotify && previousRevision !== snapshot.revision) {
     publishSnapshot(state, snapshot);
   }
 }
@@ -522,19 +522,22 @@ async function persistRedisSnapshot(
     ? buildDispatchSignature(currentSnapshot.result)
     : null;
   const nextSignature = buildDispatchSignature(result);
+  const shouldPublish = currentSignature !== nextSignature;
   const snapshot: DispatchSnapshot = {
     fetchedAt: new Date().toISOString(),
     revision:
-      currentSignature === nextSignature
-        ? currentSnapshot?.revision ?? 0
-        : (currentSnapshot?.revision ?? 0) + 1,
+      shouldPublish
+        ? (currentSnapshot?.revision ?? 0) + 1
+        : currentSnapshot?.revision ?? 0,
     result,
   };
   const serializedSnapshot = JSON.stringify(snapshot);
 
   await redis.client.set(redisSnapshotKey(), serializedSnapshot);
-  await redis.publisher.publish(redisChannelName(), serializedSnapshot);
-  applySnapshot(state, snapshot, true);
+  if (shouldPublish) {
+    await redis.publisher.publish(redisChannelName(), serializedSnapshot);
+  }
+  applySnapshot(state, snapshot, shouldPublish);
   try {
     await persistDispatchSnapshot(snapshot);
     state.telemetry.lastPersistDurationMs = Date.now() - persistStartedAt;
