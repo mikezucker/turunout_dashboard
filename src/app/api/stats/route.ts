@@ -1,6 +1,7 @@
 import { cookies } from "next/headers";
 import { NextResponse } from "next/server";
 import { fetchDispatchStats } from "@/lib/stats";
+import { getOrSetTtlCache } from "@/lib/ttl-cache";
 import {
   getDispatchAliasTokens,
   getUnitProfile,
@@ -9,6 +10,7 @@ import {
 } from "@/lib/unit-session";
 
 export const dynamic = "force-dynamic";
+const STATS_CACHE_TTL_MS = 14 * 60 * 1000;
 
 export async function GET() {
   const cookieStore = await cookies();
@@ -31,10 +33,15 @@ export async function GET() {
     );
   }
 
-  const result = await fetchDispatchStats({
-    ...unit,
-    dispatchAliases: getDispatchAliasTokens(unit),
-  });
+  const result = await getOrSetTtlCache(
+    `stats:${unitId}`,
+    STATS_CACHE_TTL_MS,
+    () =>
+      fetchDispatchStats({
+        ...unit,
+        dispatchAliases: getDispatchAliasTokens(unit),
+      }),
+  );
 
   return NextResponse.json(result, { status: 200 });
 }

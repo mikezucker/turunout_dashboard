@@ -6,9 +6,11 @@ import {
   serializeUnitProfile,
   sessionCookieName,
 } from "@/lib/unit-session";
+import { getOrSetTtlCache } from "@/lib/ttl-cache";
 import { fetchLiveWeather } from "@/lib/weather";
 
 export const dynamic = "force-dynamic";
+const WEATHER_CACHE_TTL_MS = 4 * 60 * 1000;
 
 export async function GET() {
   const cookieStore = await cookies();
@@ -31,7 +33,11 @@ export async function GET() {
     );
   }
 
-  const weather = await fetchLiveWeather(unit);
+  const weather = await getOrSetTtlCache(
+    `weather:${unitId}`,
+    WEATHER_CACHE_TTL_MS,
+    () => fetchLiveWeather(unit),
+  );
 
   return NextResponse.json({
     ok: weather.isLive,

@@ -1,5 +1,6 @@
 import { cookies } from "next/headers";
 import { NextResponse } from "next/server";
+import { getOrSetTtlCache } from "@/lib/ttl-cache";
 import {
   ensureDispatchPolling,
   getDispatchHubHealth,
@@ -12,6 +13,7 @@ import {
 } from "@/lib/unit-session";
 
 export const dynamic = "force-dynamic";
+const DISPATCH_HEALTH_CACHE_TTL_MS = 55 * 1000;
 
 export async function GET() {
   const cookieStore = await cookies();
@@ -26,13 +28,21 @@ export async function GET() {
   }
 
   try {
-    ensureDispatchPolling();
-    await getDispatchSnapshot();
+    const result = await getOrSetTtlCache(
+      "dispatch-health",
+      DISPATCH_HEALTH_CACHE_TTL_MS,
+      async () => {
+        ensureDispatchPolling();
+        await getDispatchSnapshot();
 
-    return NextResponse.json({
-      ...getDispatchHubHealth(),
-      firstDue: getFirstDueEnvDebug(),
-    });
+        return {
+          ...getDispatchHubHealth(),
+          firstDue: getFirstDueEnvDebug(),
+        };
+      },
+    );
+
+    return NextResponse.json(result);
   } catch (error) {
     const message =
       error instanceof Error ? error.message : "Dispatch diagnostics unavailable.";

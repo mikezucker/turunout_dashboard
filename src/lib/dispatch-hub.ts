@@ -244,7 +244,7 @@ function snapshotAgeMs(snapshot: DispatchSnapshot | null, now = Date.now()) {
 }
 
 function requestRefreshThresholdMs() {
-  return Math.max(getPollIntervalMs() * 2, MIN_REQUEST_REFRESH_INTERVAL_MS);
+  return Math.max(getPollIntervalMs(), MIN_REQUEST_REFRESH_INTERVAL_MS);
 }
 
 function shouldRefreshSnapshotOnRequest(snapshot: DispatchSnapshot | null) {
@@ -291,9 +291,20 @@ function nextPollIntervalMs(state: DispatchHubState) {
   return applyPollJitter(baseIntervalMs);
 }
 
-function scheduleNextDispatchRefresh(state: DispatchHubState) {
+function clearScheduledDispatchRefresh(state: DispatchHubState) {
   if (state.intervalId) {
     clearTimeout(state.intervalId);
+    state.intervalId = null;
+  }
+
+  state.lastScheduledPollIntervalMs = null;
+}
+
+function scheduleNextDispatchRefresh(state: DispatchHubState) {
+  clearScheduledDispatchRefresh(state);
+
+  if (state.listeners.size === 0) {
+    return;
   }
 
   const intervalMs = nextPollIntervalMs(state);
@@ -617,7 +628,7 @@ async function refreshWithSharedStore(state: DispatchHubState) {
 export function ensureDispatchPolling() {
   const state = getDispatchHubState();
 
-  if (state.intervalId) {
+  if (state.listeners.size === 0 || state.intervalId || state.inFlight) {
     return;
   }
 
@@ -695,11 +706,15 @@ export async function getDispatchSnapshot() {
 export function subscribeToDispatches(listener: DispatchListener) {
   const state = getDispatchHubState();
 
-  ensureDispatchPolling();
   state.listeners.add(listener);
+  ensureDispatchPolling();
 
   return () => {
     state.listeners.delete(listener);
+
+    if (state.listeners.size === 0) {
+      clearScheduledDispatchRefresh(state);
+    }
   };
 }
 

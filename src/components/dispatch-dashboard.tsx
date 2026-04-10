@@ -1019,7 +1019,7 @@ export function DispatchDashboard() {
     }
 
     function scheduleStreamReconnect() {
-      if (!active || reconnectTimeoutId !== null) {
+      if (!active || reconnectTimeoutId !== null || document.visibilityState !== "visible") {
         return;
       }
 
@@ -1035,6 +1035,10 @@ export function DispatchDashboard() {
     }
 
     function connectDispatchStream() {
+      if (document.visibilityState !== "visible") {
+        return;
+      }
+
       clearReconnectTimeout();
       eventSource?.close();
       streamConnected = false;
@@ -1091,9 +1095,21 @@ export function DispatchDashboard() {
       refreshDispatchesIfStreamUnavailable();
     }, DISPATCH_FALLBACK_POLL_INTERVAL_MS);
     const refreshOnFocus = () => {
+      if (!streamConnected && document.visibilityState === "visible") {
+        connectDispatchStream();
+      }
+
       refreshDispatchesIfVisible(true);
     };
     const refreshOnVisibilityChange = () => {
+      if (document.visibilityState === "visible") {
+        connectDispatchStream();
+      } else {
+        clearReconnectTimeout();
+        streamConnected = false;
+        eventSource?.close();
+      }
+
       refreshDispatchesIfVisible();
     };
     window.addEventListener("focus", refreshOnFocus);

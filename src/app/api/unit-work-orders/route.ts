@@ -1,9 +1,11 @@
 import { cookies } from "next/headers";
 import { NextResponse } from "next/server";
+import { getOrSetTtlCache } from "@/lib/ttl-cache";
 import { sessionCookieName, readSessionToken } from "@/lib/unit-session";
 import { fetchUnitWorkOrders } from "@/lib/work-orders";
 
 export const dynamic = "force-dynamic";
+const WORK_ORDERS_CACHE_TTL_MS = 55 * 1000;
 
 export async function GET() {
   const cookieStore = await cookies();
@@ -22,7 +24,11 @@ export async function GET() {
     );
   }
 
-  const result = await fetchUnitWorkOrders(unitId);
+  const result = await getOrSetTtlCache(
+    `work-orders:${unitId}`,
+    WORK_ORDERS_CACHE_TTL_MS,
+    () => fetchUnitWorkOrders(unitId),
+  );
 
   return NextResponse.json(result, { status: 200 });
 }
