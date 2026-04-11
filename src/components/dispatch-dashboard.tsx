@@ -700,7 +700,7 @@ function UnitBrandBlock({ unit }: { unit: SerializedUnitProfile }) {
   return (
     <div className="flex items-center justify-center">
       {company.imageSrc ? (
-        <div className="flex h-64 w-64 items-center justify-center overflow-hidden 2xl:h-72 2xl:w-72">
+        <div className="flex h-28 w-28 items-center justify-center overflow-hidden sm:h-40 sm:w-40 xl:h-64 xl:w-64 2xl:h-72 2xl:w-72">
           <Image
             src={company.imageSrc}
             alt={`${company.name} logo`}
@@ -712,7 +712,7 @@ function UnitBrandBlock({ unit }: { unit: SerializedUnitProfile }) {
         </div>
       ) : (
         <div
-          className={`flex h-24 w-24 items-center justify-center rounded-full border font-mono text-xl font-medium tracking-[0.18em] 2xl:h-28 2xl:w-28 ${company.className}`}
+          className={`flex h-20 w-20 items-center justify-center rounded-full border font-mono text-lg font-medium tracking-[0.18em] sm:h-24 sm:w-24 sm:text-xl 2xl:h-28 2xl:w-28 ${company.className}`}
           aria-label={`${company.name} company badge`}
         >
           {company.monogram}
@@ -732,7 +732,7 @@ function DepartmentLogo({
   compact?: boolean;
 }) {
   return (
-    <div className="flex items-center gap-4">
+    <div className="flex items-center gap-3 sm:gap-4">
       <Image
         src="/branding/mtfd-logo.svg"
         alt="Morris Township Fire Department logo"
@@ -740,19 +740,21 @@ function DepartmentLogo({
         height={224}
         unoptimized
         className={`object-contain drop-shadow-[0_12px_28px_rgba(0,0,0,0.28)] ${
-          compact ? "h-32 w-32 2xl:h-40 2xl:w-40" : "h-52 w-52 2xl:h-56 2xl:w-56"
+          compact
+            ? "h-20 w-20 sm:h-24 sm:w-24 2xl:h-40 2xl:w-40"
+            : "h-24 w-24 sm:h-32 sm:w-32 xl:h-52 xl:w-52 2xl:h-56 2xl:w-56"
         }`}
       />
       <div>
         <p
-          className={`font-mono text-xs uppercase tracking-[0.28em] ${
+          className={`font-mono text-[10px] uppercase tracking-[0.24em] sm:text-xs sm:tracking-[0.28em] ${
             dark ? "text-white/52" : "text-[var(--signal)]"
           }`}
         >
           Morris Township Fire
         </p>
         {subtitle ? (
-          <p className={`mt-1 text-sm ${dark ? "text-white/72" : "text-black/60"}`}>
+          <p className={`mt-1 text-xs sm:text-sm ${dark ? "text-white/72" : "text-black/60"}`}>
             {subtitle}
           </p>
         ) : null}
@@ -1559,15 +1561,15 @@ export function DispatchDashboard() {
         ),
         content: (
           <div className="grid h-full min-h-0 gap-5 xl:grid-cols-[minmax(0,1.3fr)_minmax(320px,0.7fr)]">
-            <div ref={workOrdersListRef} className="min-h-0 overflow-y-auto pr-3">
+            <div ref={workOrdersListRef} className="min-h-0 overflow-y-auto sm:pr-3">
               <ul className="grid gap-4">
                 {group.workOrders.length > 0 ? (
                   group.workOrders.map((order) => (
                     <li
                       key={`${group.apparatusApiId}:${order.id}`}
-                      className="rounded-[1.8rem] border border-white/12 bg-white/6 px-8 py-7"
+                      className="rounded-[1.8rem] border border-white/12 bg-white/6 px-5 py-5 sm:px-8 sm:py-7"
                     >
-                      <p className="text-[2.15rem] font-medium leading-tight text-white">{order.title}</p>
+                      <p className="text-[1.5rem] font-medium leading-tight text-white sm:text-[2.15rem]">{order.title}</p>
                       {order.status ? (
                         <p className="mt-4 font-mono text-sm uppercase tracking-[0.18em] text-white/56">
                           {order.status}
@@ -1576,11 +1578,11 @@ export function DispatchDashboard() {
                     </li>
                   ))
                 ) : (
-                  <li className="rounded-[1.8rem] border border-emerald-300/18 bg-emerald-300/8 px-8 py-9">
+                  <li className="rounded-[1.8rem] border border-emerald-300/18 bg-emerald-300/8 px-5 py-6 sm:px-8 sm:py-9">
                     <p className="font-mono text-sm uppercase tracking-[0.24em] text-emerald-100/72">
                       Queue Clear
                     </p>
-                    <p className="mt-4 text-[2.15rem] font-medium leading-tight text-white">
+                    <p className="mt-4 text-[1.5rem] font-medium leading-tight text-white sm:text-[2.15rem]">
                       {hasMultipleGroups
                         ? `There are no active work orders for ${group.displayName}.`
                         : `There are no active work orders for ${isStationScope ? "these apparatus" : "this apparatus"}.`}
@@ -1589,15 +1591,15 @@ export function DispatchDashboard() {
                 )}
               </ul>
             </div>
-            <div className="self-start rounded-[2rem] border border-white/16 bg-white/10 px-8 py-8">
+            <div className="self-start rounded-[2rem] border border-white/16 bg-white/10 px-5 py-6 sm:px-8 sm:py-8">
               <p className="font-mono text-sm uppercase tracking-[0.28em] text-white/56">
                 Queue Status
               </p>
-              <p className="mt-5 text-[5.25rem] font-semibold tracking-[-0.06em] text-white">
+              <p className="mt-5 text-[3.2rem] font-semibold tracking-[-0.06em] text-white sm:text-[5.25rem]">
                 {group.workOrders.length}
               </p>
-              <p className="mt-3 text-xl text-white/72">Open work orders</p>
-              <p className="mt-8 text-lg leading-8 text-white/72">
+              <p className="mt-3 text-lg text-white/72 sm:text-xl">Open work orders</p>
+              <p className="mt-6 text-base leading-7 text-white/72 sm:mt-8 sm:text-lg sm:leading-8">
                 {workOrdersMessage ??
                   (hasMultipleGroups
                     ? `Work orders are loading from the configured ${group.displayName} feed.`
@@ -1641,13 +1643,13 @@ export function DispatchDashboard() {
         ),
         content: (
           <div className="grid min-h-0 content-start items-start gap-6 xl:grid-cols-[minmax(340px,0.84fr)_minmax(500px,1.16fr)]">
-            <div className="min-h-0 self-start rounded-[2rem] border border-white/12 bg-white/6 px-7 py-7 backdrop-blur-sm">
+            <div className="min-h-0 self-start rounded-[2rem] border border-white/12 bg-white/6 px-5 py-5 backdrop-blur-sm sm:px-7 sm:py-7">
               {flashingWeatherAlert ? (
-                <div className="animate-pulse rounded-[1.5rem] border border-red-300/50 bg-red-500/24 px-6 py-4 shadow-[0_0_40px_rgba(248,113,113,0.18)]">
+                <div className="animate-pulse rounded-[1.5rem] border border-red-300/50 bg-red-500/24 px-5 py-4 shadow-[0_0_40px_rgba(248,113,113,0.18)] sm:px-6">
                   <p className="font-mono text-sm uppercase tracking-[0.28em] text-red-50">
                     Weather Warning
                   </p>
-                  <p className="mt-2 text-[2.1rem] font-semibold leading-tight text-white">
+                  <p className="mt-2 text-[1.5rem] font-semibold leading-tight text-white sm:text-[2.1rem]">
                     {flashingWeatherAlert}
                   </p>
                 </div>
@@ -1657,15 +1659,15 @@ export function DispatchDashboard() {
                   flashingWeatherAlert ? "mt-5" : ""
                 }`}
               >
-                <div className="flex flex-col gap-4 rounded-[1.6rem] border border-white/16 bg-white/10 px-6 py-5 md:flex-row md:items-start md:justify-between">
+                <div className="flex flex-col gap-4 rounded-[1.6rem] border border-white/16 bg-white/10 px-5 py-5 sm:px-6 md:flex-row md:items-start md:justify-between">
                   <div>
                     <p className="font-mono text-sm uppercase tracking-[0.28em] text-white/58">
                       Current Weather
                     </p>
-                    <p className="mt-4 text-[2.55rem] font-semibold leading-tight text-white 2xl:text-[3.1rem]">
+                    <p className="mt-4 text-[1.9rem] font-semibold leading-tight text-white sm:text-[2.55rem] 2xl:text-[3.1rem]">
                       {unit.weatherSummary}
                     </p>
-                    <p className="mt-3 text-xl text-white/68">
+                    <p className="mt-3 text-base text-white/68 sm:text-xl">
                       {unit.weatherLocation}
                     </p>
                   </div>
@@ -1673,7 +1675,7 @@ export function DispatchDashboard() {
                     <p className="font-mono text-sm uppercase tracking-[0.28em] text-white/56">
                       Last Updated
                     </p>
-                    <p className="mt-4 text-[1.65rem] font-medium text-white 2xl:text-[1.9rem]">
+                    <p className="mt-4 text-[1.2rem] font-medium text-white sm:text-[1.65rem] 2xl:text-[1.9rem]">
                       {unit.weatherUpdatedAt
                         ? formatTime(unit.weatherUpdatedAt)
                         : "Awaiting live weather"}
@@ -1702,13 +1704,13 @@ export function DispatchDashboard() {
                     <p className="font-mono text-xs uppercase tracking-[0.22em] text-white/56">
                       {factor.label}
                     </p>
-                    <p className="mt-2 text-[1.6rem] font-medium leading-tight text-white">
+                    <p className="mt-2 text-[1.2rem] font-medium leading-tight text-white sm:text-[1.6rem]">
                       {factor.value}
                     </p>
                   </div>
                 ))}
               </div>
-              <ul className="mt-5 grid gap-3 text-[1.55rem] leading-tight text-white/88 2xl:text-[1.8rem]">
+              <ul className="mt-5 grid gap-3 text-[1.15rem] leading-tight text-white/88 sm:text-[1.55rem] 2xl:text-[1.8rem]">
                 {(unit.weatherDetails.length > 0
                   ? unit.weatherDetails
                   : ["No weather details configured"]).slice(0, 4).map((detail) => (
@@ -1716,7 +1718,7 @@ export function DispatchDashboard() {
                 ))}
               </ul>
             </div>
-            <div className="min-h-0 self-start rounded-[2rem] border border-white/16 bg-white/10 px-7 py-7">
+            <div className="min-h-0 self-start rounded-[2rem] border border-white/16 bg-white/10 px-5 py-5 sm:px-7 sm:py-7">
               <div className="flex items-center justify-between gap-4">
                 <p className="font-mono text-sm uppercase tracking-[0.28em] text-white/56">
                   Radar
@@ -1735,17 +1737,17 @@ export function DispatchDashboard() {
                     <img
                       src={activeWeatherRadarImageUrl}
                       alt={`${unit.weatherLocation} radar loop`}
-                      className="h-[clamp(22rem,40vh,32rem)] w-full object-cover"
+                      className="h-[clamp(16rem,38vh,32rem)] w-full object-cover"
                       style={{ objectPosition: "50% 50%" }}
                     />
                   </a>
                 ) : (
-                  <div className="flex h-[clamp(22rem,40vh,32rem)] items-center justify-center px-8 text-center text-[1.45rem] text-white/68">
+                  <div className="flex h-[clamp(16rem,38vh,32rem)] items-center justify-center px-6 text-center text-[1.1rem] text-white/68 sm:px-8 sm:text-[1.45rem]">
                     Radar feed unavailable for this location.
                   </div>
                 )}
               </div>
-              <p className="mt-4 text-lg leading-8 text-white/64">
+              <p className="mt-4 text-base leading-7 text-white/64 sm:text-lg sm:leading-8">
                 NOAA radar loop for Morristown area coverage.
               </p>
               <p className="mt-2 text-sm text-white/48">
@@ -1786,14 +1788,14 @@ export function DispatchDashboard() {
             {visibleScheduleEntries.map((entry) => (
               <div
                 key={entry.id}
-                className="grid gap-4 rounded-[1.8rem] border border-white/12 bg-white/6 px-8 py-7 md:grid-cols-[160px_minmax(0,1fr)]"
+                className="grid gap-4 rounded-[1.8rem] border border-white/12 bg-white/6 px-5 py-5 sm:px-8 sm:py-7 md:grid-cols-[160px_minmax(0,1fr)]"
               >
-                <p className="font-mono text-[2.8rem] uppercase tracking-[0.2em] text-white/64">
+                <p className="font-mono text-[1.7rem] uppercase tracking-[0.16em] text-white/64 sm:text-[2.8rem] sm:tracking-[0.2em]">
                   {entry.timeRange}
                 </p>
                 <div>
-                  <p className="text-[2.9rem] font-medium leading-tight text-white">{entry.title}</p>
-                  <p className="mt-2 text-[1.85rem] text-white/80">
+                  <p className="text-[1.8rem] font-medium leading-tight text-white sm:text-[2.9rem]">{entry.title}</p>
+                  <p className="mt-2 text-[1.15rem] text-white/80 sm:text-[1.85rem]">
                     {entry.station ? `${entry.station} / ` : ""}
                     {entry.staffing.length > 0
                       ? entry.staffing.join(" • ")
@@ -1830,44 +1832,44 @@ export function DispatchDashboard() {
         content: (
           <div className="grid min-h-0 content-start items-start gap-5 xl:grid-cols-[minmax(0,1.18fr)_minmax(360px,0.82fr)] xl:items-start">
             <div className="grid auto-rows-min gap-5 md:grid-cols-2">
-              <div className="self-start rounded-[2rem] border border-white/12 bg-white/7 px-8 py-7">
+              <div className="self-start rounded-[2rem] border border-white/12 bg-white/7 px-5 py-5 sm:px-8 sm:py-7">
                 <p className="font-mono text-sm uppercase tracking-[0.28em] text-white/56">
                   Total Dept. Calls
                 </p>
-                <p className="mt-4 text-[5.1rem] font-semibold tracking-[-0.06em] text-white">
+                <p className="mt-4 text-[3rem] font-semibold tracking-[-0.06em] text-white sm:text-[5.1rem]">
                   {statsUnavailable ? "Unavailable" : totalDepartmentCalls}
                 </p>
-                <p className="mt-4 text-xl text-white/68">Year to date</p>
+                <p className="mt-4 text-base text-white/68 sm:text-xl">Year to date</p>
               </div>
-              <div className="self-start rounded-[2rem] border border-white/12 bg-white/7 px-8 py-7">
+              <div className="self-start rounded-[2rem] border border-white/12 bg-white/7 px-5 py-5 sm:px-8 sm:py-7">
                 <p className="font-mono text-sm uppercase tracking-[0.28em] text-white/56">
                   {`Total ${responseLabel} Calls`}
                 </p>
-                <p className="mt-4 text-[5.1rem] font-semibold tracking-[-0.06em] text-white">
+                <p className="mt-4 text-[3rem] font-semibold tracking-[-0.06em] text-white sm:text-[5.1rem]">
                   {statsUnavailable ? "Unavailable" : totalApparatusCalls}
                 </p>
-                <p className="mt-4 text-xl text-white/68">{unit.displayName} year to date</p>
+                <p className="mt-4 text-base text-white/68 sm:text-xl">{unit.displayName} year to date</p>
               </div>
-              <div className="self-start rounded-[2rem] border border-red-300/16 bg-red-300/8 px-8 py-7">
+              <div className="self-start rounded-[2rem] border border-red-300/16 bg-red-300/8 px-5 py-5 sm:px-8 sm:py-7">
                 <p className="font-mono text-sm uppercase tracking-[0.28em] text-red-50/72">
                   Fire
                 </p>
-                <p className="mt-4 text-[5.1rem] font-semibold tracking-[-0.06em] text-white">
+                <p className="mt-4 text-[3rem] font-semibold tracking-[-0.06em] text-white sm:text-[5.1rem]">
                   {statsUnavailable ? "Unavailable" : fireRescueCalls}
                 </p>
-                <p className="mt-4 text-xl text-white/68">Department fire/rescue incidents</p>
+                <p className="mt-4 text-base text-white/68 sm:text-xl">Department fire/rescue incidents</p>
               </div>
-              <div className="self-start rounded-[2rem] border border-sky-300/16 bg-sky-300/8 px-8 py-7">
+              <div className="self-start rounded-[2rem] border border-sky-300/16 bg-sky-300/8 px-5 py-5 sm:px-8 sm:py-7">
                 <p className="font-mono text-sm uppercase tracking-[0.28em] text-sky-50/72">
                   EMS
                 </p>
-                <p className="mt-4 text-[5.1rem] font-semibold tracking-[-0.06em] text-white">
+                <p className="mt-4 text-[3rem] font-semibold tracking-[-0.06em] text-white sm:text-[5.1rem]">
                   {statsUnavailable ? "Unavailable" : emsCalls}
                 </p>
-                <p className="mt-4 text-xl text-white/68">Department EMS incidents</p>
+                <p className="mt-4 text-base text-white/68 sm:text-xl">Department EMS incidents</p>
               </div>
             </div>
-            <div className="self-start rounded-[2rem] border border-white/16 bg-white/10 px-8 py-8">
+            <div className="self-start rounded-[2rem] border border-white/16 bg-white/10 px-5 py-5 sm:px-8 sm:py-8">
               <p className="font-mono text-sm uppercase tracking-[0.28em] text-white/56">
                 Stats Summary
               </p>
@@ -1876,7 +1878,7 @@ export function DispatchDashboard() {
                   <p className="font-mono text-xs uppercase tracking-[0.22em] text-white/54">
                     Department Split
                   </p>
-                  <p className="mt-3 text-[1.9rem] font-medium leading-tight text-white">
+                  <p className="mt-3 text-[1.4rem] font-medium leading-tight text-white sm:text-[1.9rem]">
                     {statsUnavailable
                       ? "Live totals unavailable"
                       : `${fireRescueCalls} Fire / ${emsCalls} EMS`}
@@ -1886,7 +1888,7 @@ export function DispatchDashboard() {
                   <p className="font-mono text-xs uppercase tracking-[0.22em] text-white/54">
                     {`${responseLabel} Share`}
                   </p>
-                  <p className="mt-3 text-[1.9rem] font-medium leading-tight text-white">
+                  <p className="mt-3 text-[1.4rem] font-medium leading-tight text-white sm:text-[1.9rem]">
                     {statsUnavailable
                       ? "Live totals unavailable"
                       : totalDepartmentCalls > 0
@@ -1925,7 +1927,7 @@ export function DispatchDashboard() {
                   <p className="font-mono text-xs uppercase tracking-[0.22em] text-white/54">
                     Source
                   </p>
-                  <p className="mt-3 text-xl leading-8 text-white/78">
+                  <p className="mt-3 text-base leading-7 text-white/78 sm:text-xl sm:leading-8">
                     {statsMessage ??
                       rollingWindows[0]?.sourceLabel ??
                       statsSourceLabel ??
@@ -1963,52 +1965,52 @@ export function DispatchDashboard() {
         content: (
           <div className="grid h-full content-start gap-5 xl:grid-cols-[repeat(2,minmax(0,1fr))_minmax(340px,1.05fr)]">
             <div className="grid gap-5 md:grid-cols-2 xl:col-span-2">
-              <div className="rounded-[2rem] border border-white/12 bg-white/7 px-8 py-7">
+              <div className="rounded-[2rem] border border-white/12 bg-white/7 px-5 py-5 sm:px-8 sm:py-7">
                 <p className="font-mono text-sm uppercase tracking-[0.28em] text-white/56">
                   Last Success
                 </p>
                 <p className="mt-4 text-3xl font-semibold leading-tight text-white">
                   {formatTime(dispatchHealth?.telemetry.lastSuccessfulFetchAt ?? null)}
                 </p>
-                <p className="mt-4 text-xl text-white/68">
+                <p className="mt-4 text-base text-white/68 sm:text-xl">
                   Latest healthy upstream refresh
                 </p>
               </div>
-              <div className="rounded-[2rem] border border-white/12 bg-white/7 px-8 py-7">
+              <div className="rounded-[2rem] border border-white/12 bg-white/7 px-5 py-5 sm:px-8 sm:py-7">
                 <p className="font-mono text-sm uppercase tracking-[0.28em] text-white/56">
                   Snapshot Revision
                 </p>
-                <p className="mt-4 text-[5.1rem] font-semibold tracking-[-0.06em] text-white">
+                <p className="mt-4 text-[3rem] font-semibold tracking-[-0.06em] text-white sm:text-[5.1rem]">
                   {dispatchHealth?.revision ?? 0}
                 </p>
-                <p className="mt-4 text-xl text-white/68">
+                <p className="mt-4 text-base text-white/68 sm:text-xl">
                   Upstream {dispatchHealth?.snapshotUpstreamStatus ?? "Unavailable"}
                 </p>
               </div>
-              <div className="rounded-[2rem] border border-sky-300/16 bg-sky-300/8 px-8 py-7">
+              <div className="rounded-[2rem] border border-sky-300/16 bg-sky-300/8 px-5 py-5 sm:px-8 sm:py-7">
                 <p className="font-mono text-sm uppercase tracking-[0.28em] text-sky-50/72">
                   Fetch Latency
                 </p>
-                <p className="mt-4 text-[5.1rem] font-semibold tracking-[-0.06em] text-white">
+                <p className="mt-4 text-[3rem] font-semibold tracking-[-0.06em] text-white sm:text-[5.1rem]">
                   {formatDurationMs(dispatchHealth?.telemetry.lastFetchDurationMs ?? null)}
                 </p>
-                <p className="mt-4 text-xl text-white/68">
+                <p className="mt-4 text-base text-white/68 sm:text-xl">
                   Last FirstDue request duration
                 </p>
               </div>
-              <div className="rounded-[2rem] border border-amber-300/16 bg-amber-300/8 px-8 py-7">
+              <div className="rounded-[2rem] border border-amber-300/16 bg-amber-300/8 px-5 py-5 sm:px-8 sm:py-7">
                 <p className="font-mono text-sm uppercase tracking-[0.28em] text-amber-50/72">
                   Persist Duration
                 </p>
-                <p className="mt-4 text-[5.1rem] font-semibold tracking-[-0.06em] text-white">
+                <p className="mt-4 text-[3rem] font-semibold tracking-[-0.06em] text-white sm:text-[5.1rem]">
                   {formatDurationMs(dispatchHealth?.telemetry.lastPersistDurationMs ?? null)}
                 </p>
-                <p className="mt-4 text-xl text-white/68">
+                <p className="mt-4 text-base text-white/68 sm:text-xl">
                   Snapshot + event write time
                 </p>
               </div>
             </div>
-            <div className="rounded-[2rem] border border-white/16 bg-white/10 px-8 py-8 xl:col-start-3 xl:row-span-2">
+            <div className="rounded-[2rem] border border-white/16 bg-white/10 px-5 py-5 sm:px-8 sm:py-8 xl:col-start-3 xl:row-span-2">
               <p className="font-mono text-sm uppercase tracking-[0.28em] text-white/56">
                 Status Summary
               </p>
@@ -2017,7 +2019,7 @@ export function DispatchDashboard() {
                   <p className="font-mono text-xs uppercase tracking-[0.22em] text-white/54">
                     Shared Store
                   </p>
-                  <p className="mt-3 text-[1.9rem] font-medium leading-tight text-white">
+                  <p className="mt-3 text-[1.4rem] font-medium leading-tight text-white sm:text-[1.9rem]">
                     {dispatchHealth?.redis.configured ? "Redis enabled" : "Process-local fallback"}
                   </p>
                   <p className="mt-2 text-base text-white/66">
@@ -2028,7 +2030,7 @@ export function DispatchDashboard() {
                   <p className="font-mono text-xs uppercase tracking-[0.22em] text-white/54">
                     Persistence
                   </p>
-                  <p className="mt-3 text-[1.9rem] font-medium leading-tight text-white">
+                  <p className="mt-3 text-[1.4rem] font-medium leading-tight text-white sm:text-[1.9rem]">
                     {dispatchHealth?.database.configured ? "Postgres enabled" : "Database disabled"}
                   </p>
                   <p className="mt-2 text-base text-white/66">
@@ -2039,7 +2041,7 @@ export function DispatchDashboard() {
                   <p className="font-mono text-xs uppercase tracking-[0.22em] text-white/54">
                     FirstDue Config
                   </p>
-                  <p className="mt-3 text-xl leading-8 text-white/78">
+                  <p className="mt-3 text-base leading-7 text-white/78 sm:text-xl sm:leading-8">
                     URL {dispatchHealth?.firstDue?.apiUrl.valid ? "ready" : "invalid"} / auth {dispatchHealth?.firstDue?.auth.headerValuePresent ? "present" : "missing"} / timeout {dispatchHealth?.firstDue?.timeout.parsedMs ?? "n/a"} ms
                   </p>
                 </div>
@@ -2047,7 +2049,7 @@ export function DispatchDashboard() {
                   <p className="font-mono text-xs uppercase tracking-[0.22em] text-white/54">
                     Last Error
                   </p>
-                  <p className="mt-3 text-xl leading-8 text-white/78">
+                  <p className="mt-3 text-base leading-7 text-white/78 sm:text-xl sm:leading-8">
                     {dispatchHealthMessage ??
                       dispatchHealth?.telemetry.lastError ??
                       dispatchHealth?.snapshotSourceLabel ??
@@ -2297,7 +2299,7 @@ export function DispatchDashboard() {
           <p className="font-mono text-sm uppercase tracking-[0.3em] text-[var(--signal)]">
             Turnout / Loading
           </p>
-          <h1 className="mt-4 overflow-hidden text-ellipsis whitespace-nowrap text-4xl font-semibold tracking-[-0.04em]">
+          <h1 className="mt-4 text-3xl font-semibold tracking-[-0.04em] sm:text-4xl">
             Checking unit session
           </h1>
         </section>
@@ -2312,11 +2314,11 @@ export function DispatchDashboard() {
           <DepartmentLogo subtitle="Turnout Board" />
         </div>
         <section className="w-full max-w-2xl overflow-hidden rounded-[2rem] border border-[var(--line)] bg-[var(--panel)] shadow-[0_24px_80px_rgba(65,43,24,0.14)]">
-          <div className="border-b border-[var(--line)] px-8 py-8">
+          <div className="border-b border-[var(--line)] px-6 py-7 sm:px-8 sm:py-8">
             <p className="font-mono text-sm uppercase tracking-[0.3em] text-[var(--signal)]">
               Turnout / Unit Login
             </p>
-            <h1 className="mt-3 overflow-hidden text-ellipsis whitespace-nowrap text-4xl font-semibold tracking-[-0.04em]">
+            <h1 className="mt-3 text-3xl font-semibold tracking-[-0.04em] sm:text-4xl">
               Sign in this display to a unit
             </h1>
             <p className="mt-3 max-w-xl text-base text-black/65">
@@ -2324,7 +2326,7 @@ export function DispatchDashboard() {
               right unit information when there is no active dispatch.
             </p>
           </div>
-          <form onSubmit={handleLogin} className="grid gap-6 px-8 py-8">
+          <form onSubmit={handleLogin} className="grid gap-6 px-6 py-7 sm:px-8 sm:py-8">
             <label className="grid gap-2">
               <span className="font-mono text-sm uppercase tracking-[0.24em] text-black/52">
                 Unit Login
@@ -2374,37 +2376,37 @@ export function DispatchDashboard() {
 
   if (primaryDispatch) {
     return (
-      <main className="flex h-screen w-screen overflow-hidden">
-        <section className="grid h-full w-full gap-4 bg-[linear-gradient(135deg,rgba(235,121,76,0.98),rgba(162,44,44,0.96))] p-6 text-white xl:grid-cols-[minmax(0,1.72fr)_360px]">
-          <div className="min-w-0 pr-2">
+      <main className="min-h-dvh w-full overflow-x-hidden bg-[linear-gradient(135deg,rgba(235,121,76,0.98),rgba(162,44,44,0.96))]">
+        <section className="safe-area-shell grid min-h-dvh w-full gap-4 text-white xl:grid-cols-[minmax(0,1.72fr)_360px]">
+          <div className="min-w-0 xl:pr-2">
             <div className="grid gap-4 xl:grid-cols-[auto_minmax(0,1fr)_auto] xl:items-start">
               <DepartmentLogo subtitle="Turnout Board" dark />
               <div className="min-w-0 xl:px-2">
-                <p className="font-mono text-sm uppercase tracking-[0.38em] text-white/70">
+                <p className="font-mono text-xs uppercase tracking-[0.28em] text-white/70 sm:text-sm sm:tracking-[0.38em]">
                   Active Dispatch / {unit.displayName}
                 </p>
                 <p className="mt-2 font-mono text-xs uppercase tracking-[0.3em] text-white/52">
                   Address
                 </p>
-                <h1 className="mt-1 max-w-5xl line-clamp-2 text-[4.6rem] font-semibold leading-[0.88] tracking-[-0.06em] text-white 2xl:text-[5.1rem]">
+                <h1 className="mt-1 max-w-5xl text-[2.3rem] font-semibold leading-[0.92] tracking-[-0.06em] text-white sm:line-clamp-2 sm:text-[3.2rem] xl:text-[4.6rem] 2xl:text-[5.1rem]">
                   {primaryDispatch.address ?? "Address not provided"}
                 </h1>
                 <p className="mt-2 font-mono text-xs uppercase tracking-[0.3em] text-white/52">
                   Call Type
                 </p>
-                <p className="mt-1 max-w-5xl line-clamp-2 text-[4.6rem] font-medium leading-[0.88] tracking-[-0.06em] text-white/88 2xl:text-[5.1rem]">
+                <p className="mt-1 max-w-5xl text-[2.2rem] font-medium leading-[0.92] tracking-[-0.06em] text-white/88 sm:line-clamp-2 sm:text-[3.1rem] xl:text-[4.6rem] 2xl:text-[5.1rem]">
                   {primaryDispatch.nature ?? "Dispatch Alert"}
                 </p>
               </div>
-              <div className="text-right">
-                <div className="flex justify-end">
+              <div className="rounded-[1.5rem] border border-white/12 bg-white/8 p-4 text-left xl:rounded-none xl:border-0 xl:bg-transparent xl:p-0 xl:text-right">
+                <div className="flex justify-start xl:justify-end">
                   <UnitBrandBlock unit={unit} />
                 </div>
                 <p className="mt-3 font-mono text-xs uppercase tracking-[0.28em] text-white/44">
                   {unitScopeLabel}
                 </p>
-                <p className="mt-2 text-[2.2rem] font-medium text-white">{unit.displayName}</p>
-                <p className="mt-1 text-lg text-white/64">
+                <p className="mt-2 text-[1.5rem] font-medium text-white sm:text-[1.8rem] xl:text-[2.2rem]">{unit.displayName}</p>
+                <p className="mt-1 text-base text-white/64 sm:text-lg">
                   {unitMembershipSummary}
                 </p>
                 {unit.coverageDisplayName ? (
@@ -2445,7 +2447,7 @@ export function DispatchDashboard() {
                 ) : null}
                 <div
                   ref={timelineListRef}
-                  className="mt-4 max-h-[11rem] overflow-y-auto pr-2 xl:max-h-[12rem]"
+                  className="mt-4 max-h-[14rem] overflow-y-auto pr-2 xl:max-h-[12rem]"
                 >
                   <ul className="grid gap-3">
                     {recentTimelineEvents.length > 0 ? (
@@ -2465,7 +2467,7 @@ export function DispatchDashboard() {
                                 </div>
                                 <div>
                                   <div className="flex flex-wrap items-center gap-2">
-                                    <p className="text-[1.35rem] font-medium text-white">
+                                    <p className="text-[1.1rem] font-medium text-white sm:text-[1.35rem]">
                                       {timelineEventLabel(event.eventType)}
                                     </p>
                                     <span
@@ -2486,7 +2488,7 @@ export function DispatchDashboard() {
                                 {(event.status ?? event.dispatch.status ?? "unknown").toUpperCase()}
                               </p>
                             </div>
-                            <p className="mt-3 text-lg leading-8 text-white/84">
+                            <p className="mt-3 text-base leading-7 text-white/84 sm:text-lg sm:leading-8">
                               {timelineEventSummary(event.dispatch.message, event.eventType)}
                             </p>
                           </li>
@@ -2501,12 +2503,12 @@ export function DispatchDashboard() {
                 </div>
               </div>
 
-              <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-2">
+              <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-2">
                 <div className="rounded-[1.4rem] border border-white/18 bg-white/10 p-4">
                   <p className="font-mono text-xs uppercase tracking-[0.24em] text-white/62">
                     Incident
                   </p>
-                  <p className="mt-2 text-[1.8rem] font-medium">
+                  <p className="mt-2 text-[1.4rem] font-medium sm:text-[1.8rem]">
                     {primaryDispatch.incidentNumber ?? primaryDispatch.id}
                   </p>
                   <p className="mt-1 text-sm text-white/62">
@@ -2517,7 +2519,7 @@ export function DispatchDashboard() {
                   <p className="font-mono text-xs uppercase tracking-[0.24em] text-white/62">
                     Assigned Units
                   </p>
-                  <p className="mt-2 text-[1.55rem] font-medium leading-tight">
+                  <p className="mt-2 text-[1.25rem] font-medium leading-tight sm:text-[1.55rem]">
                     {primaryDispatch.unit ?? "Unassigned"}
                   </p>
                 </div>
@@ -2525,7 +2527,7 @@ export function DispatchDashboard() {
                   <p className="font-mono text-xs uppercase tracking-[0.24em] text-white/62">
                     Status
                   </p>
-                  <p className="mt-2 text-[1.8rem] font-medium">
+                  <p className="mt-2 text-[1.4rem] font-medium sm:text-[1.8rem]">
                     {dispatchDisplayStatus(primaryDispatch, now).toUpperCase()}
                   </p>
                   <p className="mt-1 text-sm text-white/68">
@@ -2538,7 +2540,7 @@ export function DispatchDashboard() {
                   <p className="font-mono text-xs uppercase tracking-[0.24em] text-white/62">
                     Dispatch Time
                   </p>
-                  <p className="mt-2 text-[3.0rem] font-medium leading-tight">
+                  <p className="mt-2 text-[1.8rem] font-medium leading-tight sm:text-[2.3rem] xl:text-[3.0rem]">
                     {formatTime(primaryDispatch.dispatchedAt)}
                   </p>
                 </div>
@@ -2546,7 +2548,7 @@ export function DispatchDashboard() {
                   <p className="font-mono text-xs uppercase tracking-[0.24em] text-white/62">
                     Feed
                   </p>
-                  <p className="mt-2 text-[1.45rem] font-medium">
+                  <p className="mt-2 text-[1.2rem] font-medium sm:text-[1.45rem]">
                     {sourceLabel ?? "Not connected"}
                   </p>
                 </div>
@@ -2554,7 +2556,7 @@ export function DispatchDashboard() {
                   <p className="font-mono text-xs uppercase tracking-[0.24em] text-white/62">
                     Updated
                   </p>
-                  <p className="mt-2 text-[1.75rem] font-medium">
+                  <p className="mt-2 text-[1.35rem] font-medium sm:text-[1.75rem]">
                     {formatShortTime(fetchedAt)}
                   </p>
                   <p className="mt-1 text-sm text-white/68">
@@ -2570,7 +2572,7 @@ export function DispatchDashboard() {
               <p className="font-mono text-sm uppercase tracking-[0.3em] text-white/62">
                 Elapsed Since Dispatch
               </p>
-              <p className="mt-3 font-mono text-[5.1rem] font-medium tracking-[-0.06em]">
+              <p className="mt-3 font-mono text-[3rem] font-medium tracking-[-0.06em] sm:text-[4rem] xl:text-[5.1rem]">
                 {featuredElapsed}
               </p>
             </div>
@@ -2606,12 +2608,12 @@ export function DispatchDashboard() {
                 </ul>
               </div>
             ) : null}
-            <div className="flex items-end justify-end">
+            <div className="safe-area-footer flex items-end justify-stretch xl:justify-end">
               <button
                 type="button"
                 onClick={handleLogout}
                 disabled={loggingOut}
-                className="rounded-full border border-white/18 bg-white/10 px-3 py-1.5 font-mono text-[10px] uppercase tracking-[0.28em] text-white/82 transition hover:bg-white/16 disabled:cursor-not-allowed disabled:opacity-60"
+                className="w-full rounded-full border border-white/18 bg-white/10 px-3 py-2 font-mono text-[10px] uppercase tracking-[0.28em] text-white/82 transition hover:bg-white/16 disabled:cursor-not-allowed disabled:opacity-60 xl:w-auto xl:py-1.5"
               >
                 {loggingOut ? "Logging Out" : "Log Out"}
               </button>
@@ -2623,8 +2625,8 @@ export function DispatchDashboard() {
   }
 
   return (
-    <main className="relative h-screen w-screen overflow-hidden">
-      <section className="relative h-full w-full overflow-hidden bg-black text-white">
+    <main className="relative min-h-dvh w-full overflow-x-hidden bg-black">
+      <section className="relative min-h-dvh w-full overflow-hidden bg-black text-white">
         <div
           key={currentIdleScreen.id}
           className="absolute inset-0 overflow-hidden"
@@ -2635,17 +2637,17 @@ export function DispatchDashboard() {
         >
           {currentIdleScreen.artwork}
           <div className="absolute inset-0 bg-[linear-gradient(180deg,rgba(0,0,0,0.02),rgba(0,0,0,0.16))]" />
-          <div className="relative grid h-full grid-rows-[auto_minmax(0,1fr)_auto] gap-4 px-6 py-5 sm:gap-5 sm:px-8 sm:py-6 xl:px-10 xl:py-8">
+          <div className="safe-area-shell relative grid min-h-dvh grid-rows-[auto_minmax(0,1fr)_auto] gap-4 sm:gap-5 xl:px-10 xl:py-8">
             <div className="grid gap-4 xl:grid-cols-[auto_minmax(0,1fr)_minmax(180px,240px)] xl:items-start">
               <DepartmentLogo subtitle="Turnout Board" dark compact />
               <div className="min-w-0 xl:px-2">
-                <p className="font-mono text-sm uppercase tracking-[0.34em] text-white/58">
+                <p className="font-mono text-xs uppercase tracking-[0.24em] text-white/58 sm:text-sm sm:tracking-[0.34em]">
                   {currentIdleScreen.eyebrow}
                 </p>
-                <h1 className="mt-2 max-w-4xl text-[2.9rem] font-semibold leading-[0.94] tracking-[-0.07em] text-white sm:text-[3.2rem] 2xl:text-[4.9rem]">
+                <h1 className="mt-2 max-w-4xl text-[2rem] font-semibold leading-[0.96] tracking-[-0.07em] text-white sm:text-[3.2rem] 2xl:text-[4.9rem]">
                   {currentIdleScreen.title}
                 </h1>
-                <p className="mt-3 max-w-3xl text-lg leading-tight text-white/80 2xl:text-xl">
+                <p className="mt-3 max-w-3xl text-base leading-tight text-white/80 sm:text-lg 2xl:text-xl">
                   {currentIdleScreen.description}
                 </p>
               </div>
@@ -2671,50 +2673,52 @@ export function DispatchDashboard() {
             <div
               ref={idleContentRef}
               className={`min-h-0 ${
-                currentIdleScreen.scrollable ? "overflow-y-auto pr-2" : ""
+                currentIdleScreen.scrollable ? "overflow-y-auto sm:pr-2" : ""
               }`}
             >
               {currentIdleScreen.content}
             </div>
 
-            <div className="flex items-end justify-between gap-4">
+            <div className="safe-area-footer flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
               <div className="xl:hidden">
-                <DepartmentLogo subtitle="Turnout Board" dark />
-                <p className="mt-3 text-sm text-white/68">{unit.displayName}</p>
+                <p className="font-mono text-[10px] uppercase tracking-[0.24em] text-white/46">
+                  {unitScopeLabel}
+                </p>
+                <p className="mt-2 text-sm text-white/68">{unit.displayName}</p>
                 {showIdleFeedStatus ? (
                   <p className="mt-2 max-w-md text-sm leading-6 text-amber-100/86">
                     {staleFeedMessage}
                   </p>
                 ) : null}
               </div>
-              <div className="ml-auto text-right">
+              <div className="w-full sm:ml-auto sm:w-auto sm:text-right">
                 <button
                   type="button"
                   onClick={handleLogout}
                   disabled={loggingOut}
-                  className="rounded-full border border-white/18 bg-white/10 px-5 py-3 font-mono text-xs uppercase tracking-[0.22em] text-white/86 transition hover:bg-white/16 disabled:cursor-not-allowed disabled:opacity-60"
+                  className="w-full rounded-full border border-white/18 bg-white/10 px-5 py-3 font-mono text-xs uppercase tracking-[0.22em] text-white/86 transition hover:bg-white/16 disabled:cursor-not-allowed disabled:opacity-60 sm:w-auto"
                 >
                   {loggingOut ? "Logging Out" : "Log Out"}
                 </button>
-                <p className="mt-3 font-mono text-xs uppercase tracking-[0.28em] text-white/40">
+                <p className="mt-3 text-center font-mono text-xs uppercase tracking-[0.28em] text-white/40 sm:text-right">
                   Screen
                 </p>
-                <p className="mt-2 text-lg text-white/72">{currentIdleScreen.label}</p>
+                <p className="mt-2 text-center text-base text-white/72 sm:text-right sm:text-lg">{currentIdleScreen.label}</p>
               </div>
             </div>
           </div>
         </div>
       </section>
       {(stickyMessage || (Boolean(unitId) && !configured)) ? (
-        <div className="absolute bottom-8 left-1/2 z-10 w-[min(920px,calc(100%-4rem))] -translate-x-1/2">
+        <div className="safe-area-bottom-banner absolute left-1/2 z-10 w-[min(920px,calc(100%-2rem))] -translate-x-1/2 sm:w-[min(920px,calc(100%-4rem))]">
           <div className="flex flex-wrap justify-center gap-3">
             {stickyMessage ? (
-              <div className="rounded-full border border-[rgba(255,255,255,0.16)] bg-[rgba(0,0,0,0.28)] px-4 py-2 text-sm text-white/88 backdrop-blur">
+              <div className="rounded-2xl border border-[rgba(255,255,255,0.16)] bg-[rgba(0,0,0,0.28)] px-4 py-2 text-sm text-white/88 backdrop-blur sm:rounded-full">
                 {stickyMessage}
               </div>
             ) : null}
             {unitId && !configured ? (
-              <div className="rounded-full border border-[rgba(255,255,255,0.16)] bg-[rgba(0,0,0,0.28)] px-4 py-2 text-sm text-white/88 backdrop-blur">
+              <div className="rounded-2xl border border-[rgba(255,255,255,0.16)] bg-[rgba(0,0,0,0.28)] px-4 py-2 text-sm text-white/88 backdrop-blur sm:rounded-full">
                 Configure <code>FIRSTDUE_API_URL</code> and auth in your server environment variables.
               </div>
             ) : null}
@@ -2722,7 +2726,7 @@ export function DispatchDashboard() {
         </div>
       ) : null}
       {showIdleFeedStatus ? (
-        <div className="pointer-events-none absolute left-1/2 top-6 z-10 w-[min(1120px,calc(100%-3rem))] -translate-x-1/2">
+        <div className="safe-area-top-banner pointer-events-none absolute left-1/2 z-10 w-[min(1120px,calc(100%-2rem))] -translate-x-1/2 sm:w-[min(1120px,calc(100%-3rem))]">
           <div
             className={`rounded-[1.4rem] border px-5 py-4 text-center shadow-[0_12px_40px_rgba(0,0,0,0.28)] backdrop-blur ${
               staleFeedLevel === "critical"
@@ -2733,7 +2737,7 @@ export function DispatchDashboard() {
             <p className="font-mono text-xs uppercase tracking-[0.28em]">
               {staleFeedLevel === "critical" ? "Feed Stale" : "Feed Delayed"}
             </p>
-            <p className="mt-2 text-lg leading-7">{staleFeedMessage}</p>
+            <p className="mt-2 text-base leading-6 sm:text-lg sm:leading-7">{staleFeedMessage}</p>
           </div>
         </div>
       ) : null}

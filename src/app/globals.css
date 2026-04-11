@@ -11,6 +11,10 @@
   --ok: #22634d;
   --warn: #8c5c11;
   --danger: #8a1c1c;
+  --safe-top: env(safe-area-inset-top, 0px);
+  --safe-right: env(safe-area-inset-right, 0px);
+  --safe-bottom: env(safe-area-inset-bottom, 0px);
+  --safe-left: env(safe-area-inset-left, 0px);
 }
 
 @theme inline {
@@ -60,5 +64,45 @@ a {
   to {
     opacity: 1;
     transform: scale(1);
+  }
+}
+
+.safe-area-shell {
+  padding-top: max(1rem, calc(1rem + var(--safe-top)));
+  padding-right: max(1rem, calc(1rem + var(--safe-right)));
+  padding-bottom: max(1rem, calc(1rem + var(--safe-bottom)));
+  padding-left: max(1rem, calc(1rem + var(--safe-left)));
+}
+
+.safe-area-footer {
+  padding-bottom: max(1rem, calc(1rem + var(--safe-bottom)));
+}
+
+.safe-area-top-banner {
+  top: max(1rem, calc(1rem + var(--safe-top)));
+}
+
+.safe-area-bottom-banner {
+  bottom: max(1rem, calc(1rem + var(--safe-bottom)));
+}
+
+@media (min-width: 640px) {
+  .safe-area-shell {
+    padding-top: max(1.5rem, calc(1.5rem + var(--safe-top)));
+    padding-right: max(2rem, calc(2rem + var(--safe-right)));
+    padding-bottom: max(1.5rem, calc(1.5rem + var(--safe-bottom)));
+    padding-left: max(2rem, calc(2rem + var(--safe-left)));
+  }
+
+  .safe-area-footer {
+    padding-bottom: max(1.5rem, calc(1.5rem + var(--safe-bottom)));
+  }
+
+  .safe-area-top-banner {
+    top: max(1.5rem, calc(1.5rem + var(--safe-top)));
+  }
+
+  .safe-area-bottom-banner {
+    bottom: max(2rem, calc(2rem + var(--safe-bottom)));
   }
 }
