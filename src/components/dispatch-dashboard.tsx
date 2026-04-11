@@ -2376,8 +2376,8 @@ export function DispatchDashboard() {
 
   if (primaryDispatch) {
     return (
-      <main className="min-h-dvh w-full overflow-x-hidden bg-[linear-gradient(135deg,rgba(235,121,76,0.98),rgba(162,44,44,0.96))]">
-        <section className="safe-area-shell grid min-h-dvh w-full gap-4 text-white xl:grid-cols-[minmax(0,1.72fr)_360px]">
+      <main className="h-dvh w-full overflow-hidden bg-[linear-gradient(135deg,rgba(235,121,76,0.98),rgba(162,44,44,0.96))]">
+        <section className="safe-area-shell grid h-full w-full gap-4 overflow-hidden text-white xl:grid-cols-[minmax(0,1.72fr)_360px]">
           <div className="min-w-0 xl:pr-2">
             <div className="grid gap-4 xl:grid-cols-[auto_minmax(0,1fr)_auto] xl:items-start">
               <DepartmentLogo subtitle="Turnout Board" dark />
@@ -2625,11 +2625,11 @@ export function DispatchDashboard() {
   }
 
   return (
-    <main className="relative min-h-dvh w-full overflow-x-hidden bg-black">
-      <section className="relative min-h-dvh w-full overflow-hidden bg-black text-white">
+    <main className="relative h-dvh w-full overflow-hidden bg-black">
+      <section className="relative h-full w-full overflow-hidden bg-black text-white">
         <div
           key={currentIdleScreen.id}
-          className="absolute inset-0 overflow-hidden"
+          className="absolute inset-0 h-full overflow-hidden"
           style={{
             animation: "idle-screen-fade 900ms ease both",
             ...currentIdleScreen.backgroundStyle,
@@ -2637,7 +2637,7 @@ export function DispatchDashboard() {
         >
           {currentIdleScreen.artwork}
           <div className="absolute inset-0 bg-[linear-gradient(180deg,rgba(0,0,0,0.02),rgba(0,0,0,0.16))]" />
-          <div className="safe-area-shell relative grid min-h-dvh grid-rows-[auto_minmax(0,1fr)_auto] gap-4 sm:gap-5 xl:px-10 xl:py-8">
+          <div className="safe-area-shell relative grid h-full grid-rows-[auto_minmax(0,1fr)_auto] gap-4 sm:gap-5 xl:px-10 xl:py-8">
             <div className="grid gap-4 xl:grid-cols-[auto_minmax(0,1fr)_minmax(180px,240px)] xl:items-start">
               <DepartmentLogo subtitle="Turnout Board" dark compact />
               <div className="min-w-0 xl:px-2">
