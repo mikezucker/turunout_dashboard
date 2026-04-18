@@ -62,6 +62,25 @@ type ScheduleResponse = {
   }>;
 };
 
+type DashboardNotesItem = {
+  id: string;
+  audience: "STATION" | "OFFICER";
+  title: string;
+  body: string;
+  stationTag: string | null;
+  isPinned: boolean;
+  startsAt: string | null;
+  endsAt: string | null;
+  updatedAt: string;
+};
+
+type DashboardNotesResponse = {
+  ok: boolean;
+  message: string | null;
+  stationNotes: DashboardNotesItem[];
+  officerNotes: DashboardNotesItem[];
+};
+
 type StatsResponse = {
   ok: boolean;
   message: string | null;
@@ -246,6 +265,26 @@ function formatDateOnly(value: string | null) {
 
   return new Intl.DateTimeFormat("en-US", {
     dateStyle: "medium",
+    timeZone: DISPATCH_TIME_ZONE,
+  }).format(parsed);
+}
+
+function formatDashboardTimestamp(value: string | null) {
+  if (!value) {
+    return null;
+  }
+
+  const parsed = new Date(value);
+
+  if (Number.isNaN(parsed.getTime())) {
+    return value;
+  }
+
+  return new Intl.DateTimeFormat("en-US", {
+    month: "short",
+    day: "numeric",
+    hour: "numeric",
+    minute: "2-digit",
     timeZone: DISPATCH_TIME_ZONE,
   }).format(parsed);
 }
@@ -786,6 +825,9 @@ export function DispatchDashboard() {
     ScheduleResponse["entries"]
   >([]);
   const [scheduleMessage, setScheduleMessage] = useState<string | null>(null);
+  const [stationNotes, setStationNotes] = useState<DashboardNotesItem[]>([]);
+  const [officerNotes, setOfficerNotes] = useState<DashboardNotesItem[]>([]);
+  const [dashboardNotesMessage, setDashboardNotesMessage] = useState<string | null>(null);
   const [statsYear, setStatsYear] = useState<number>(new Date().getFullYear());
   const [liveStatsAvailable, setLiveStatsAvailable] = useState(false);
   const [totalDepartmentCalls, setTotalDepartmentCalls] = useState(0);
@@ -1198,6 +1240,9 @@ export function DispatchDashboard() {
       setScheduleDate(null);
       setScheduleEntries([]);
       setScheduleMessage(null);
+      setStationNotes([]);
+      setOfficerNotes([]);
+      setDashboardNotesMessage(null);
       return;
     }
 
@@ -1232,6 +1277,52 @@ export function DispatchDashboard() {
 
     loadSchedule();
     const intervalId = window.setInterval(loadSchedule, 300000);
+
+    return () => {
+      active = false;
+      window.clearInterval(intervalId);
+    };
+  }, [unitId]);
+
+  useEffect(() => {
+    if (!unitId) {
+      setStationNotes([]);
+      setOfficerNotes([]);
+      setDashboardNotesMessage(null);
+      return;
+    }
+
+    let active = true;
+
+    async function loadDashboardNotes() {
+      try {
+        const response = await fetch("/api/dashboard-notes", {
+          cache: "no-store",
+        });
+        const data = (await response.json()) as DashboardNotesResponse;
+
+        if (!active) {
+          return;
+        }
+
+        setStationNotes(data.stationNotes);
+        setOfficerNotes(data.officerNotes);
+        setDashboardNotesMessage(data.message);
+      } catch (error) {
+        if (!active) {
+          return;
+        }
+
+        setStationNotes([]);
+        setOfficerNotes([]);
+        setDashboardNotesMessage(
+          error instanceof Error ? error.message : "Failed to load dashboard notes.",
+        );
+      }
+    }
+
+    void loadDashboardNotes();
+    const intervalId = window.setInterval(loadDashboardNotes, 60000);
 
     return () => {
       active = false;
@@ -1496,6 +1587,7 @@ export function DispatchDashboard() {
     () => [...timelineEvents].slice(-6).reverse(),
     [timelineEvents],
   );
+  const totalDashboardNotes = stationNotes.length + officerNotes.length;
   const statsUnavailable = !liveStatsAvailable;
   const idleScreens = useMemo<IdleScreen[]>(() => {
     if (!unit) {
@@ -1611,8 +1703,179 @@ export function DispatchDashboard() {
       };
     });
 
+    const dashboardNotesScreen =
+      totalDashboardNotes > 0
+        ? [{
+        id: "dashboard-notes",
+        label: "Notes",
+        eyebrow: "Company Notes",
+        title: `${companyBrand(unit).name} Notes Board`,
+        description:
+          dashboardNotesMessage ??
+          `${totalDashboardNotes} active dashboard note${totalDashboardNotes === 1 ? "" : "s"} for ${unit.station}.`,
+        contentVersion: `dashboard-notes:${unit.station}:${stationNotes.map((note) => note.id).join("|")}:${officerNotes.map((note) => note.id).join("|")}:${dashboardNotesMessage ?? ""}`,
+        scrollable: true,
+        backgroundStyle: {
+          background:
+            "radial-gradient(circle at 14% 18%, rgba(255,227,168,0.12), transparent 18%), radial-gradient(circle at 82% 16%, rgba(255,153,115,0.12), transparent 22%), linear-gradient(145deg, rgba(49,19,15,0.99), rgba(89,34,24,0.98) 48%, rgba(33,13,10,0.99))",
+        },
+        artwork: (
+          <div className="pointer-events-none absolute inset-0 overflow-hidden">
+            <div className="absolute inset-[7%] rounded-[2.6rem] border border-[#f4d5a4]/14 bg-[linear-gradient(135deg,rgba(145,82,44,0.16),rgba(92,49,28,0.22))]" />
+            <div className="absolute inset-[8.5%] rounded-[2.2rem] border border-white/6" />
+            <div className="absolute left-[14%] top-[12%] h-5 w-5 rounded-full bg-[#c21f1f]/78 shadow-[0_0_0_6px_rgba(255,255,255,0.06)]" />
+            <div className="absolute right-[18%] top-[22%] h-4 w-4 rounded-full bg-[#dfb247]/76 shadow-[0_0_0_6px_rgba(255,255,255,0.05)]" />
+            <div className="absolute left-[22%] bottom-[18%] h-4 w-4 rounded-full bg-[#2f77c7]/72 shadow-[0_0_0_6px_rgba(255,255,255,0.05)]" />
+            <div className="absolute right-[14%] bottom-[14%] h-5 w-5 rounded-full bg-[#2a9d62]/72 shadow-[0_0_0_6px_rgba(255,255,255,0.05)]" />
+          </div>
+        ),
+        content: (
+          <div className="grid min-h-0 gap-5 xl:grid-cols-[280px_minmax(0,1fr)]">
+            <aside className="rounded-[2.2rem] border border-white/10 bg-[linear-gradient(180deg,rgba(34,13,10,0.82),rgba(51,20,15,0.72))] px-5 py-6 shadow-[inset_0_1px_0_rgba(255,255,255,0.04)] sm:px-7 sm:py-8">
+              <p className="font-mono text-xs uppercase tracking-[0.34em] text-[#f3d19d]/62">
+                Station Board
+              </p>
+              <p className="mt-4 text-[2rem] font-semibold tracking-[-0.05em] text-[#fff7ea] sm:text-[2.7rem]">
+                {companyBrand(unit).name}
+              </p>
+              <p className="mt-2 text-base text-[#f6e2c0]/68 sm:text-lg">
+                {unit.station}
+              </p>
+              <div className="mt-8 grid gap-4">
+                <div className="rounded-[1.6rem] border border-[#f3d19d]/12 bg-black/14 px-4 py-4">
+                  <p className="font-mono text-xs uppercase tracking-[0.24em] text-[#f3d19d]/56">
+                    Active Notes
+                  </p>
+                  <p className="mt-3 text-[2.5rem] font-semibold tracking-[-0.06em] text-white">
+                    {totalDashboardNotes}
+                  </p>
+                </div>
+                <div className="rounded-[1.6rem] border border-[#f3d19d]/12 bg-black/14 px-4 py-4">
+                  <p className="font-mono text-xs uppercase tracking-[0.24em] text-[#f3d19d]/56">
+                    Station
+                  </p>
+                  <p className="mt-3 text-[1.6rem] font-medium text-white">
+                    {stationNotes.length} note{stationNotes.length === 1 ? "" : "s"}
+                  </p>
+                </div>
+                <div className="rounded-[1.6rem] border border-[#f3d19d]/12 bg-black/14 px-4 py-4">
+                  <p className="font-mono text-xs uppercase tracking-[0.24em] text-[#f3d19d]/56">
+                    Officer
+                  </p>
+                  <p className="mt-3 text-[1.6rem] font-medium text-white">
+                    {officerNotes.length} note{officerNotes.length === 1 ? "" : "s"}
+                  </p>
+                </div>
+              </div>
+              <p className="mt-8 text-sm leading-7 text-[#f6e2c0]/58 sm:text-base sm:leading-8">
+                {dashboardNotesMessage ??
+                  "Published from the members site and filtered for this company before display."}
+              </p>
+            </aside>
+            <div className="min-h-0 rounded-[2.3rem] border border-[#f1d3a2]/12 bg-[linear-gradient(180deg,rgba(134,81,47,0.32),rgba(99,58,34,0.22))] p-3 shadow-[inset_0_1px_0_rgba(255,255,255,0.05)] sm:p-5">
+              <div className="grid gap-5 xl:grid-cols-2">
+                {[
+                  {
+                    key: "station",
+                    title: "Station Notes",
+                    notes: stationNotes,
+                    paper: "bg-[#f4e7c9] text-[#3d2a1e]",
+                    pin: "bg-[#bb2d1d]",
+                    accent: "text-[#8e5e36]",
+                    tilt: "-rotate-[1.2deg]",
+                    subtitle: "House memos, coverage reminders, and station-level updates.",
+                    badge: "Station Memo",
+                    pinnedBadge: "Pinned Station Memo",
+                    rule: "bg-[#8e5e36]/20",
+                    noteShadow: "shadow-[0_18px_30px_rgba(0,0,0,0.24)]",
+                    pinnedRing: "ring-[#c56a2d]/30",
+                  },
+                  {
+                    key: "officer",
+                    title: "Officer Notes",
+                    notes: officerNotes,
+                    paper: "bg-[#edf3f8] text-[#203247]",
+                    pin: "bg-[#2d6bb4]",
+                    accent: "text-[#486684]",
+                    tilt: "rotate-[1deg]",
+                    subtitle: "Command direction, operational notices, and officer messaging.",
+                    badge: "Officer Order",
+                    pinnedBadge: "Priority Officer Order",
+                    rule: "bg-[#486684]/18",
+                    noteShadow: "shadow-[0_18px_30px_rgba(8,31,52,0.2)]",
+                    pinnedRing: "ring-[#4d83b7]/34",
+                  },
+                ].map((section) => (
+                  <section key={section.key} className="min-h-0">
+                    <div className="mb-4 flex items-center justify-between px-2">
+                      <div>
+                        <p className="font-mono text-sm uppercase tracking-[0.28em] text-[#f5ddba]/68">
+                          {section.title}
+                        </p>
+                        <p className="mt-1 text-sm text-[#f5ddba]/50">
+                          {section.subtitle}
+                        </p>
+                      </div>
+                      <p className="rounded-full border border-white/10 bg-black/14 px-3 py-1 text-sm text-[#f5ddba]/56">
+                        {section.notes.length} active
+                      </p>
+                    </div>
+                    <div className="grid gap-5">
+                      {section.notes.map((note, index) => (
+                        <article
+                          key={note.id}
+                          className={`${section.paper} ${
+                            index % 2 === 0 ? section.tilt : "rotate-[0.5deg]"
+                          } ${section.noteShadow} ${
+                            note.isPinned ? `ring-2 ${section.pinnedRing}` : "ring-1 ring-black/6"
+                          } relative rounded-[0.8rem] px-5 pb-5 pt-6 sm:px-6 sm:pb-6 sm:pt-7`}
+                        >
+                          <div className={`absolute left-1/2 top-0 h-4 w-4 -translate-x-1/2 -translate-y-1/2 rounded-full ${section.pin} shadow-[0_2px_8px_rgba(0,0,0,0.28)]`} />
+                          <div className="flex items-start justify-between gap-4">
+                            <div>
+                              <p className="text-[1.35rem] font-semibold leading-tight sm:text-[1.75rem]">
+                                {note.title}
+                              </p>
+                              <div className="mt-3 flex flex-wrap items-center gap-2">
+                                <span
+                                  className={`rounded-full border border-black/10 px-3 py-1 font-mono text-[10px] uppercase tracking-[0.22em] ${section.accent} ${
+                                    note.isPinned ? "bg-black/10 font-semibold" : "bg-black/5"
+                                  }`}
+                                >
+                                  {note.isPinned ? section.pinnedBadge : section.badge}
+                                </span>
+                                {note.stationTag ? (
+                                  <span className={`font-mono text-[10px] uppercase tracking-[0.22em] ${section.accent}`}>
+                                    {note.stationTag}
+                                  </span>
+                                ) : null}
+                              </div>
+                            </div>
+                            {formatDashboardTimestamp(note.updatedAt) ? (
+                              <p className={`max-w-[9rem] text-right text-xs leading-5 ${section.accent}`}>
+                                {formatDashboardTimestamp(note.updatedAt)}
+                              </p>
+                            ) : null}
+                          </div>
+                          <div className={`mt-4 h-px ${section.rule}`} />
+                          <p className="mt-4 whitespace-pre-wrap text-[1.08rem] leading-8 sm:text-[1.22rem] sm:leading-9">
+                            {note.body}
+                          </p>
+                        </article>
+                      ))}
+                    </div>
+                  </section>
+                ))}
+              </div>
+            </div>
+          </div>
+        ),
+      }]
+        : [];
+
     return [
       ...workOrderScreens,
+      ...dashboardNotesScreen,
       {
         id: "weather",
         label: "Weather",
@@ -2071,6 +2334,9 @@ export function DispatchDashboard() {
     scheduleDate,
     scheduleEntries,
     scheduleMessage,
+    stationNotes,
+    officerNotes,
+    dashboardNotesMessage,
     statsMessage,
     statsSourceLabel,
     statsYear,
@@ -2087,6 +2353,7 @@ export function DispatchDashboard() {
     workOrders,
     workOrderGroups,
     workOrdersMessage,
+    totalDashboardNotes,
   ]);
   const currentIdleScreen =
     idleScreens[idleScreenIndex % Math.max(idleScreens.length, 1)] ?? null;
