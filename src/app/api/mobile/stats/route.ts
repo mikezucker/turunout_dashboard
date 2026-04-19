@@ -1,92 +1,58 @@
 import { NextRequest, NextResponse } from "next/server";
-import { fetchDispatchStats } from "@/lib/stats";
-import { getUnitProfile } from "@/lib/unit-session";
+import { extractBearerToken, verifyMobileToken } from "@/lib/mobile-auth";
 
-export const dynamic = "force-dynamic";
+export async function GET(req: NextRequest) {
+  try {
+    const token = extractBearerToken(req.headers.get("authorization"));
 
-function getAuthorizedUnitId(request: NextRequest) {
-  const authHeader = request.headers.get("authorization") ?? "";
-  const expectedToken = process.env.DISPATCH_MOBILE_API_TOKEN ?? "";
-  const configuredUnitId = process.env.DISPATCH_MOBILE_UNIT_ID ?? "";
+    if (!token) {
+      return NextResponse.json(
+        { success: false, error: "Missing bearer token." },
+        { status: 401 }
+      );
+    }
 
-  if (!expectedToken || !configuredUnitId) {
-    return {
-      ok: false as const,
-      status: 500,
-      message:
-        "Dispatch mobile auth is not configured. Set DISPATCH_MOBILE_API_TOKEN and DISPATCH_MOBILE_UNIT_ID.",
-      unitId: null,
-    };
-  }
+    verifyMobileToken(token);
 
-  if (!authHeader.startsWith("Bearer ")) {
-    return {
-      ok: false as const,
-      status: 401,
-      message: "Missing bearer token.",
-      unitId: null,
-    };
-  }
-
-  const providedToken = authHeader.replace(/^Bearer\s+/i, "").trim();
-
-  if (providedToken != expectedToken) {
-    return {
-      ok: false as const,
-      status: 401,
-      message: "Invalid bearer token.",
-      unitId: null,
-    };
-  }
-
-  return {
-    ok: true as const,
-    status: 200,
-    message: null,
-    unitId: configuredUnitId,
-  };
-}
-
-export async function GET(request: NextRequest) {
-  const auth = getAuthorizedUnitId(request);
-
-  if (!auth.ok || !auth.unitId) {
-    return NextResponse.json(
-      {
-        ok: false,
-        message: auth.message,
+    return NextResponse.json({
+      success: true,
+      stats: {
+        department24h: 0,
+        department7d: 0,
+        department30d: 0,
+        station24h: 0,
+        station7d: 0,
+        station30d: 0,
       },
-      { status: auth.status },
+      department: {
+        total24h: 0,
+        total7d: 0,
+        total30d: 0,
+        fire24h: 0,
+        fire7d: 0,
+        fire30d: 0,
+        ems24h: 0,
+        ems7d: 0,
+        ems30d: 0,
+      },
+      station: {
+        total24h: 0,
+        total7d: 0,
+        total30d: 0,
+        fire24h: 0,
+        fire7d: 0,
+        fire30d: 0,
+        ems24h: 0,
+        ems7d: 0,
+        ems30d: 0,
+      },
+      lastUpdated: new Date().toISOString(),
+    });
+  } catch (error) {
+    console.error("GET /api/mobile/stats error:", error);
+    return NextResponse.json(
+      { success: false, error: "Unauthorized." },
+      { status: 401 }
     );
   }
-
-  const unit = getUnitProfile(auth.unitId);
-
-  if (!unit) {
-    return NextResponse.json(
-      {
-        ok: false,
-        message: "Configured dispatch mobile unit was not found.",
-      },
-      { status: 404 },
-    );
-  }
-
-  const result = await fetchDispatchStats(unit);
-
-  return NextResponse.json(
-    {
-      ok: result.ok,
-      message: result.message,
-      sourceLabel: result.sourceLabel,
-      year: result.year,
-      liveTotalsAvailable: result.liveTotalsAvailable,
-      stationCallTotal: result.totalApparatusCalls,
-      departmentCallTotal: result.totalDepartmentCalls,
-      emsCalls: result.emsCalls,
-      fireRescueCalls: result.fireRescueCalls,
-      rollingWindows: result.rollingWindows,
-    },
-    { status: 200 },
-  );
 }
