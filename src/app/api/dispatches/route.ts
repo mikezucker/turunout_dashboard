@@ -1,24 +1,25 @@
 import { cookies } from "next/headers";
 import { NextResponse } from "next/server";
 import {
-  readSessionToken,
-  sessionCookieName,
-} from "@/lib/unit-session";
-import {
-  buildDispatchApiResponse,
+  buildDispatchApiResponseFromResult,
   dispatchApiStatusCode,
 } from "@/lib/dispatch-feed";
-import { getDispatchSnapshot } from "@/lib/dispatch-hub";
+import { fetchFirstDueDispatches } from "@/lib/dispatches";
+import { readSessionToken, sessionCookieName } from "@/lib/unit-session";
 
 export const dynamic = "force-dynamic";
 
 export async function GET() {
   try {
-    const snapshot = await getDispatchSnapshot();
+    const result = await fetchFirstDueDispatches();
     const cookieStore = await cookies();
     const token = cookieStore.get(sessionCookieName())?.value;
     const unitId = readSessionToken(token);
-    const response = buildDispatchApiResponse(snapshot, unitId);
+    const response = buildDispatchApiResponseFromResult(
+      result,
+      new Date().toISOString(),
+      unitId,
+    );
 
     return NextResponse.json(
       response,

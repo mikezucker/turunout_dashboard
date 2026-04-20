@@ -28,9 +28,21 @@ export function buildDispatchApiResponse(
   snapshot: DispatchSnapshot,
   unitId: string | null,
 ): DispatchApiResponse {
+  return buildDispatchApiResponseFromResult(
+    snapshot.result,
+    snapshot.fetchedAt,
+    unitId,
+  );
+}
+
+export function buildDispatchApiResponseFromResult(
+  result: DispatchFetchResult,
+  fetchedAt: string,
+  unitId: string | null,
+): DispatchApiResponse {
   const unit = unitId ? getUnitProfile(unitId) : null;
   const dispatches = filterDispatchesForUnit(
-    snapshot.result.dispatches,
+    result.dispatches,
     unit
       ? {
           ...unit,
@@ -40,8 +52,8 @@ export function buildDispatchApiResponse(
   );
 
   return {
-    fetchedAt: snapshot.fetchedAt,
-    ...snapshot.result,
+    fetchedAt,
+    ...result,
     dispatches,
   };
 }

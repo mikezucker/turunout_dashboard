@@ -1,11 +1,11 @@
 # Turnout Dispatch Board
 
-This project is a Next.js dashboard that polls FirstDue from the server, stores durable recent dispatch history in Postgres when configured, and pushes live updates to screens through server-sent events.
+This project is a Next.js dashboard that polls FirstDue on demand through API routes, stores durable recent dispatch history in Postgres when configured, and refreshes screens from browser-driven polling.
 
 ## How it works
 
-- The browser loads `/api/dispatches` once and then subscribes to `/api/dispatch-stream`.
-- The server poller calls your FirstDue endpoint with credentials stored in environment variables.
+- The browser polls `/api/dispatches` on an interval, on focus, and when the tab becomes visible.
+- The API route calls your FirstDue endpoint with credentials stored in environment variables.
 - When `DATABASE_URL` is configured, snapshots, incidents, and incident-change events are written to Postgres.
 - When `REDIS_URL` is configured, multiple app instances share the latest snapshot and fan out updates consistently.
 - The response is normalized into a common dispatch shape so the UI can render even if the upstream field names vary.

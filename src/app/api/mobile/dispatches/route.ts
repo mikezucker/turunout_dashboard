@@ -1,9 +1,9 @@
 import { NextRequest, NextResponse } from "next/server";
 import {
-  buildDispatchApiResponse,
+  buildDispatchApiResponseFromResult,
   dispatchApiStatusCode,
 } from "@/lib/dispatch-feed";
-import { getDispatchSnapshot } from "@/lib/dispatch-hub";
+import { fetchFirstDueDispatches } from "@/lib/dispatches";
 import { getUnitProfile } from "@/lib/unit-session";
 
 export const dynamic = "force-dynamic";
@@ -85,8 +85,12 @@ export async function GET(request: NextRequest) {
   }
 
   try {
-    const snapshot = await getDispatchSnapshot();
-    const response = buildDispatchApiResponse(snapshot, unit.id);
+    const result = await fetchFirstDueDispatches();
+    const response = buildDispatchApiResponseFromResult(
+      result,
+      new Date().toISOString(),
+      unit.id,
+    );
 
     return NextResponse.json(response, {
       status: dispatchApiStatusCode(response),

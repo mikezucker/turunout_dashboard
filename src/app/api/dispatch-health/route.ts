@@ -1,10 +1,6 @@
 import { cookies } from "next/headers";
 import { NextResponse } from "next/server";
-import {
-  ensureDispatchPolling,
-  getDispatchHubHealth,
-  getDispatchSnapshot,
-} from "@/lib/dispatch-hub";
+import { fetchFirstDueDispatches } from "@/lib/dispatches";
 import { getFirstDueEnvDebug } from "@/lib/firstdue-env";
 import {
   readSessionToken,
@@ -26,11 +22,48 @@ export async function GET() {
   }
 
   try {
-    ensureDispatchPolling();
-    await getDispatchSnapshot();
+    const result = await fetchFirstDueDispatches();
+    const fetchedAt = new Date().toISOString();
 
     return NextResponse.json({
-      ...getDispatchHubHealth(),
+      ok: true,
+      pollIntervalMs: 0,
+      lockTtlMs: 0,
+      retentionDays: 0,
+      listeners: 0,
+      revision: 0,
+      snapshotFetchedAt: fetchedAt,
+      snapshotUpstreamStatus: result.upstreamStatus,
+      snapshotSourceLabel: result.sourceLabel,
+      database: {
+        configured: false,
+        target: null,
+      },
+      redis: {
+        configured: false,
+        subscribed: false,
+        clientStatus: "disabled",
+        publisherStatus: "disabled",
+        subscriberStatus: "disabled",
+      },
+      telemetry: {
+        lastRefreshStartedAt: fetchedAt,
+        lastRefreshCompletedAt: fetchedAt,
+        lastSuccessfulFetchAt:
+          result.upstreamStatus && result.upstreamStatus >= 200 && result.upstreamStatus < 300
+            ? fetchedAt
+            : null,
+        lastFetchDurationMs: null,
+        lastPersistDurationMs: null,
+        lastPersistError: null,
+        lastRefreshDurationMs: null,
+        lastError:
+          result.upstreamStatus && result.upstreamStatus >= 200 && result.upstreamStatus < 300
+            ? null
+            : result.message,
+        lastResultMessage: result.message,
+        lastUpstreamStatus: result.upstreamStatus,
+      },
       firstDue: getFirstDueEnvDebug(),
     });
   } catch (error) {
@@ -39,7 +72,6 @@ export async function GET() {
 
     return NextResponse.json(
       {
-        ...getDispatchHubHealth(),
         firstDue: getFirstDueEnvDebug(),
         ok: false,
         message,
