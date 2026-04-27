@@ -13,6 +13,32 @@ import {
   persistDispatchSnapshot,
 } from "@/lib/dispatch-store";
 
+// 🚨 ADD THIS HELPER (leave everything else untouched below)
+async function sendDispatchAlertWebhook(
+  dispatch: DispatchFetchResult["dispatches"][number]
+) {
+  const webhookUrl = process.env.DISPATCH_ALERT_WEBHOOK_URL;
+  const token = process.env.DISPATCH_ALERT_WEBHOOK_TOKEN;
+  if (!webhookUrl || !token) return;
+  try {
+    await fetch(webhookUrl, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${token}`,
+      },
+      body: JSON.stringify({
+        dispatchId: dispatch.id,
+        callType: dispatch.nature ?? dispatch.message ?? "Dispatch",
+        address: dispatch.address ?? null,
+        units: dispatch.unit ? [dispatch.unit] : [],
+      }),
+    });
+  } catch (err) {
+    console.error("[dispatch-hub] webhook failed", err);
+  }
+}
+
 type DispatchListener = (snapshot: DispatchSnapshot) => void;
 
 type DispatchHubState = {
@@ -523,6 +549,25 @@ async function persistRedisSnapshot(
     : null;
   const nextSignature = buildDispatchSignature(result);
   const shouldPublish = currentSignature !== nextSignature;
+
+  // 🚨 NEW DISPATCH DETECTION
+if (shouldPublish && isSuccessfulResult(result)) {
+  const previousIds = new Set(
+    currentSnapshot?.result.dispatches.map((d) => d.id) ?? []
+  );
+  const newDispatches = result.dispatches.filter(
+    (d) => d.id && !previousIds.has(d.id)
+  );
+  if (newDispatches.length > 0) {
+    console.log(
+      "[dispatch-hub] new dispatches:",
+      newDispatches.map((d) => d.id)
+    );
+  }
+  await Promise.allSettled(
+    newDispatches.map((d) => sendDispatchAlertWebhook(d))
+  );
+}
   const snapshot: DispatchSnapshot = {
     fetchedAt: new Date().toISOString(),
     revision:
