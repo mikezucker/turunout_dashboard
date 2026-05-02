@@ -103,7 +103,13 @@ function normalizeWorkOrders(payload: unknown): WorkOrderRecord[] {
       ]) ??
       number ??
       id;
-    const status = pickString(record, ["status", "status_code", "state"]);
+    const status = pickString(record, [
+      "status",
+      "status_name",
+      "statusName",
+      "status_code",
+      "state",
+    ]);
 
     return [{ id, title: number ? `${number} - ${title}` : title, status }];
   });
