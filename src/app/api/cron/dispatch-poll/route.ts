@@ -4,10 +4,15 @@ import { refreshDispatchSnapshot } from "@/lib/dispatch-hub";
 export const dynamic = "force-dynamic";
 
 export async function GET(req: NextRequest) {
-  const expectedToken = process.env.DISPATCH_CRON_SECRET;
-  const providedToken = req.headers.get("authorization")?.replace("Bearer ", "");
+  const expectedToken = process.env.DISPATCH_CRON_SECRET?.trim();
+  const authHeader = req.headers.get("authorization") ?? "";
+  const providedToken = authHeader.replace(/^Bearer\s+/i, "").trim();
 
-  if (!expectedToken || providedToken !== expectedToken) {
+  const isVercelCron =
+    req.headers.get("user-agent")?.toLowerCase().includes("vercel-cron") ||
+    Boolean(req.headers.get("x-vercel-id"));
+
+  if (!isVercelCron && (!expectedToken || providedToken !== expectedToken)) {
     return NextResponse.json(
       { success: false, error: "Unauthorized." },
       { status: 401 }
