@@ -13,15 +13,29 @@ import {
   persistDispatchSnapshot,
 } from "@/lib/dispatch-store";
 
-// 🚨 ADD THIS HELPER (leave everything else untouched below)
 async function sendDispatchAlertWebhook(
   dispatch: DispatchFetchResult["dispatches"][number]
 ) {
-  const webhookUrl = process.env.DISPATCH_ALERT_WEBHOOK_URL;
-  const token = process.env.DISPATCH_ALERT_WEBHOOK_TOKEN;
-  if (!webhookUrl || !token) return;
+  const webhookUrl = process.env.DISPATCH_ALERT_WEBHOOK_URL?.trim();
+  const token = process.env.DISPATCH_ALERT_WEBHOOK_TOKEN?.trim();
+
+  if (!webhookUrl || !token) {
+    console.warn("[dispatch-hub] webhook skipped: missing URL or token");
+    return;
+  }
+
+  const units =
+    typeof dispatch.unit === "string"
+      ? dispatch.unit
+          .split(",")
+          .map((unit) => unit.trim())
+          .filter(Boolean)
+      : [];
+
   try {
-    await fetch(webhookUrl, {
+    console.log("[dispatch-hub] sending webhook for dispatch:", dispatch.id);
+
+    const response = await fetch(webhookUrl, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
@@ -31,8 +45,17 @@ async function sendDispatchAlertWebhook(
         dispatchId: dispatch.id,
         callType: dispatch.nature ?? dispatch.message ?? "Dispatch",
         address: dispatch.address ?? null,
-        units: dispatch.unit ? [dispatch.unit] : [],
+        units,
       }),
+    });
+
+    const responseText = await response.text().catch(() => "");
+
+    console.log("[dispatch-hub] webhook response:", {
+      dispatchId: dispatch.id,
+      status: response.status,
+      ok: response.ok,
+      body: responseText.slice(0, 500),
     });
   } catch (err) {
     console.error("[dispatch-hub] webhook failed", err);
@@ -83,6 +106,7 @@ const DEFAULT_LOCK_TTL_MS = 15000;
 const MIN_REQUEST_REFRESH_INTERVAL_MS = 15000;
 const DEFAULT_MAX_BACKOFF_POLL_INTERVAL_MS = 60000;
 const POLL_JITTER_RATIO = 0.15;
+
 const globalForDispatchHub = globalThis as typeof globalThis & {
   __turnoutDispatchHub?: DispatchHubState;
 };
@@ -92,6 +116,7 @@ function getPollIntervalMs() {
     process.env.FIRSTDUE_POLL_INTERVAL_MS ??
     process.env.NEXT_PUBLIC_POLL_INTERVAL_MS ??
     String(DEFAULT_POLL_INTERVAL_MS);
+
   const parsedValue = Number(rawValue);
 
   return Number.isFinite(parsedValue) && parsedValue > 0
@@ -111,15 +136,16 @@ function getMaxBackoffPollIntervalMs() {
   return Math.max(
     parsePositiveNumber(
       process.env.FIRSTDUE_MAX_BACKOFF_POLL_INTERVAL_MS,
-      DEFAULT_MAX_BACKOFF_POLL_INTERVAL_MS,
+      DEFAULT_MAX_BACKOFF_POLL_INTERVAL_MS
     ),
-    getPollIntervalMs(),
+    getPollIntervalMs()
   );
 }
 
 function getPollLockTtlMs() {
   const rawValue =
     process.env.FIRSTDUE_POLL_LOCK_TTL_MS ?? String(DEFAULT_LOCK_TTL_MS);
+
   const parsedValue = Number(rawValue);
 
   return Number.isFinite(parsedValue) && parsedValue > 0
@@ -220,9 +246,7 @@ function publishSnapshot(state: DispatchHubState, snapshot: DispatchSnapshot) {
 }
 
 function parseDispatchSnapshot(value: string | null) {
-  if (!value) {
-    return null;
-  }
+  if (!value) return null;
 
   try {
     const parsed = JSON.parse(value) as DispatchSnapshot;
@@ -246,25 +270,17 @@ function parseDispatchSnapshot(value: string | null) {
 }
 
 function isSuccessfulSnapshot(snapshot: DispatchSnapshot | null) {
-  if (!snapshot) {
-    return false;
-  }
+  if (!snapshot) return false;
 
   const status = snapshot.result.upstreamStatus;
-
   return typeof status === "number" && status >= 200 && status < 300;
 }
 
 function snapshotAgeMs(snapshot: DispatchSnapshot | null, now = Date.now()) {
-  if (!snapshot) {
-    return null;
-  }
+  if (!snapshot) return null;
 
   const fetchedAt = Date.parse(snapshot.fetchedAt);
-
-  if (Number.isNaN(fetchedAt)) {
-    return null;
-  }
+  if (Number.isNaN(fetchedAt)) return null;
 
   return Math.max(0, now - fetchedAt);
 }
@@ -285,19 +301,14 @@ function shouldRefreshSnapshotOnRequest(snapshot: DispatchSnapshot | null) {
 
 function isSuccessfulResult(result: DispatchFetchResult) {
   const status = result.upstreamStatus;
-
   return typeof status === "number" && status >= 200 && status < 300;
 }
 
 function applyPollJitter(intervalMs: number) {
   const jitterWindowMs = Math.round(intervalMs * POLL_JITTER_RATIO);
-
-  if (jitterWindowMs <= 0) {
-    return intervalMs;
-  }
+  if (jitterWindowMs <= 0) return intervalMs;
 
   const jitterOffsetMs = Math.round((Math.random() * 2 - 1) * jitterWindowMs);
-
   return Math.max(1000, intervalMs + jitterOffsetMs);
 }
 
@@ -308,7 +319,7 @@ function nextPollIntervalMs(state: DispatchHubState) {
   if (state.consecutiveFailureCount > 0) {
     const backedOffIntervalMs = Math.min(
       maxBackoffIntervalMs,
-      baseIntervalMs * 2 ** Math.min(state.consecutiveFailureCount, 6),
+      baseIntervalMs * 2 ** Math.min(state.consecutiveFailureCount, 6)
     );
 
     return applyPollJitter(backedOffIntervalMs);
@@ -324,6 +335,7 @@ function scheduleNextDispatchRefresh(state: DispatchHubState) {
 
   const intervalMs = nextPollIntervalMs(state);
   state.lastScheduledPollIntervalMs = intervalMs;
+
   state.intervalId = setTimeout(() => {
     state.intervalId = null;
     void refreshDispatchSnapshot();
@@ -333,7 +345,7 @@ function scheduleNextDispatchRefresh(state: DispatchHubState) {
 function applySnapshot(
   state: DispatchHubState,
   snapshot: DispatchSnapshot,
-  shouldNotify: boolean,
+  shouldNotify: boolean
 ) {
   const nextSignature = buildDispatchSignature(snapshot.result);
   const previousRevision = state.snapshot?.revision ?? null;
@@ -346,11 +358,13 @@ function applySnapshot(
     const previousSuccessAt = state.telemetry.lastSuccessfulFetchAt
       ? Date.parse(state.telemetry.lastSuccessfulFetchAt)
       : NaN;
+
     const snapshotFetchedAt = Date.parse(snapshot.fetchedAt);
 
     if (
       Number.isFinite(snapshotFetchedAt) &&
-      (!Number.isFinite(previousSuccessAt) || snapshotFetchedAt > previousSuccessAt)
+      (!Number.isFinite(previousSuccessAt) ||
+        snapshotFetchedAt > previousSuccessAt)
     ) {
       state.telemetry.lastSuccessfulFetchAt = snapshot.fetchedAt;
     }
@@ -362,21 +376,21 @@ function applySnapshot(
 }
 
 function getRedisState(state: DispatchHubState) {
-  if (state.redis) {
-    return state.redis;
-  }
+  if (state.redis) return state.redis;
 
   const redisUrl = getRedisUrl();
+  if (!redisUrl) return null;
 
-  if (!redisUrl) {
-    return null;
-  }
+  const client = new Redis(redisUrl, {
+    lazyConnect: true,
+    maxRetriesPerRequest: 1,
+  });
 
-  const client = new Redis(redisUrl, { lazyConnect: true, maxRetriesPerRequest: 1 });
   const publisher = new Redis(redisUrl, {
     lazyConnect: true,
     maxRetriesPerRequest: 1,
   });
+
   const subscriber = new Redis(redisUrl, {
     lazyConnect: true,
     maxRetriesPerRequest: null,
@@ -395,9 +409,7 @@ function getRedisState(state: DispatchHubState) {
 }
 
 async function ensureRedisConnection(client: Redis) {
-  if (client.status === "ready") {
-    return;
-  }
+  if (client.status === "ready") return;
 
   if (client.status === "wait" || client.status === "end") {
     await client.connect();
@@ -411,36 +423,28 @@ async function ensureRedisConnection(client: Redis) {
 
 async function ensureRedisSubscription(state: DispatchHubState) {
   const redis = getRedisState(state);
+  if (!redis) return;
 
-  if (!redis) {
-    return;
-  }
-
-  if (redis.subscribed) {
-    return;
-  }
-
-  if (redis.subscriptionReady) {
-    return redis.subscriptionReady;
-  }
+  if (redis.subscribed) return;
+  if (redis.subscriptionReady) return redis.subscriptionReady;
 
   redis.subscriptionReady = (async () => {
     await ensureRedisConnection(redis.subscriber);
+
     redis.subscriber.on("message", (_channel, message) => {
       const snapshot = parseDispatchSnapshot(message);
-
-      if (!snapshot) {
-        return;
-      }
+      if (!snapshot) return;
 
       applySnapshot(state, snapshot, true);
     });
+
     await redis.subscriber.subscribe(redisChannelName());
     redis.subscribed = true;
+
     await ensureRedisConnection(redis.client);
 
     const storedSnapshot = parseDispatchSnapshot(
-      await redis.client.get(redisSnapshotKey()),
+      await redis.client.get(redisSnapshotKey())
     );
 
     if (storedSnapshot) {
@@ -456,14 +460,13 @@ async function ensureRedisSubscription(state: DispatchHubState) {
 
 async function loadRedisSnapshot(state: DispatchHubState) {
   const redis = getRedisState(state);
-
-  if (!redis) {
-    return null;
-  }
+  if (!redis) return null;
 
   await ensureRedisConnection(redis.client);
 
-  const snapshot = parseDispatchSnapshot(await redis.client.get(redisSnapshotKey()));
+  const snapshot = parseDispatchSnapshot(
+    await redis.client.get(redisSnapshotKey())
+  );
 
   if (snapshot) {
     applySnapshot(state, snapshot, false);
@@ -474,10 +477,7 @@ async function loadRedisSnapshot(state: DispatchHubState) {
 
 async function acquirePollLease(state: DispatchHubState) {
   const redis = getRedisState(state);
-
-  if (!redis) {
-    return true;
-  }
+  if (!redis) return true;
 
   await ensureRedisConnection(redis.client);
 
@@ -499,7 +499,7 @@ async function acquirePollLease(state: DispatchHubState) {
     1,
     redisLockKey(),
     redis.instanceId,
-    String(getPollLockTtlMs()),
+    String(getPollLockTtlMs())
   );
 
   return Number(result) === 1;
@@ -507,7 +507,7 @@ async function acquirePollLease(state: DispatchHubState) {
 
 async function persistRedisSnapshot(
   state: DispatchHubState,
-  result: DispatchFetchResult,
+  result: DispatchFetchResult
 ) {
   const persistStartedAt = Date.now();
   const redis = getRedisState(state);
@@ -515,8 +515,10 @@ async function persistRedisSnapshot(
   if (!redis) {
     const currentSignature = state.signature;
     const nextSignature = buildDispatchSignature(result);
+
     const nextRevision =
       currentSignature === nextSignature ? state.revision : state.revision + 1;
+
     const snapshot: DispatchSnapshot = {
       fetchedAt: new Date().toISOString(),
       revision: nextRevision,
@@ -524,6 +526,7 @@ async function persistRedisSnapshot(
     };
 
     applySnapshot(state, snapshot, true);
+
     try {
       await persistDispatchSnapshot(snapshot);
       state.telemetry.lastPersistDurationMs = Date.now() - persistStartedAt;
@@ -531,10 +534,13 @@ async function persistRedisSnapshot(
     } catch (error) {
       const message =
         error instanceof Error ? error.message : "Dispatch persistence failed.";
+
       state.telemetry.lastPersistDurationMs = null;
       state.telemetry.lastPersistError = message;
+
       console.error("[dispatch-hub] persist failed", message);
     }
+
     return snapshot;
   }
 
@@ -542,47 +548,51 @@ async function persistRedisSnapshot(
   await ensureRedisConnection(redis.publisher);
 
   const currentSnapshot = parseDispatchSnapshot(
-    await redis.client.get(redisSnapshotKey()),
+    await redis.client.get(redisSnapshotKey())
   );
+
   const currentSignature = currentSnapshot
     ? buildDispatchSignature(currentSnapshot.result)
     : null;
+
   const nextSignature = buildDispatchSignature(result);
   const shouldPublish = currentSignature !== nextSignature;
 
-  // 🚨 NEW DISPATCH DETECTION
-if (shouldPublish && isSuccessfulResult(result)) {
-  const previousIds = new Set(
-    currentSnapshot?.result.dispatches.map((d) => d.id) ?? []
-  );
-  const newDispatches = result.dispatches.filter(
-    (d) => d.id && !previousIds.has(d.id)
-  );
-  if (newDispatches.length > 0) {
-    console.log(
-      "[dispatch-hub] new dispatches:",
-      newDispatches.map((d) => d.id)
-    );
+  // 🚨 TEMP FORCE TEST:
+  // This intentionally sends the newest dispatch every time the cron poll runs.
+  // Use only to prove the Turnout → webhook → main app → APNS chain.
+  // After testing, replace this block with the normal "new dispatch only" block.
+  if (isSuccessfulResult(result)) {
+    const newestDispatch = result.dispatches[0];
+
+    if (newestDispatch) {
+      console.log(
+        "[dispatch-hub] TEMP forcing webhook test for dispatch:",
+        newestDispatch.id
+      );
+
+      await sendDispatchAlertWebhook(newestDispatch);
+    }
   }
-  await Promise.allSettled(
-    newDispatches.map((d) => sendDispatchAlertWebhook(d))
-  );
-}
+
   const snapshot: DispatchSnapshot = {
     fetchedAt: new Date().toISOString(),
-    revision:
-      shouldPublish
-        ? (currentSnapshot?.revision ?? 0) + 1
-        : currentSnapshot?.revision ?? 0,
+    revision: shouldPublish
+      ? (currentSnapshot?.revision ?? 0) + 1
+      : currentSnapshot?.revision ?? 0,
     result,
   };
+
   const serializedSnapshot = JSON.stringify(snapshot);
 
   await redis.client.set(redisSnapshotKey(), serializedSnapshot);
+
   if (shouldPublish) {
     await redis.publisher.publish(redisChannelName(), serializedSnapshot);
   }
+
   applySnapshot(state, snapshot, shouldPublish);
+
   try {
     await persistDispatchSnapshot(snapshot);
     state.telemetry.lastPersistDurationMs = Date.now() - persistStartedAt;
@@ -590,8 +600,10 @@ if (shouldPublish && isSuccessfulResult(result)) {
   } catch (error) {
     const message =
       error instanceof Error ? error.message : "Dispatch persistence failed.";
+
     state.telemetry.lastPersistDurationMs = null;
     state.telemetry.lastPersistError = message;
+
     console.error("[dispatch-hub] persist failed", message);
   }
 
@@ -600,16 +612,18 @@ if (shouldPublish && isSuccessfulResult(result)) {
 
 async function fetchAndPersistSnapshot(state: DispatchHubState) {
   let result: DispatchFetchResult;
+
   const refreshStartedAt = Date.now();
-  state.telemetry.lastRefreshStartedAt = new Date(refreshStartedAt).toISOString();
+  state.telemetry.lastRefreshStartedAt = new Date(
+    refreshStartedAt
+  ).toISOString();
 
   try {
     const fetchStartedAt = Date.now();
     result = await fetchFirstDueDispatches();
     state.telemetry.lastFetchDurationMs = Date.now() - fetchStartedAt;
   } catch (error) {
-    state.telemetry.lastFetchDurationMs =
-      Date.now() - refreshStartedAt;
+    state.telemetry.lastFetchDurationMs = Date.now() - refreshStartedAt;
     result = createFallbackResult(error);
   }
 
@@ -620,9 +634,12 @@ async function fetchAndPersistSnapshot(state: DispatchHubState) {
   state.telemetry.lastRefreshDurationMs = Date.now() - refreshStartedAt;
   state.telemetry.lastUpstreamStatus = result.upstreamStatus;
   state.telemetry.lastResultMessage = result.message;
+
   state.telemetry.lastError = state.telemetry.lastPersistError
     ? state.telemetry.lastPersistError
-    : result.upstreamStatus && result.upstreamStatus >= 200 && result.upstreamStatus < 300
+    : result.upstreamStatus &&
+        result.upstreamStatus >= 200 &&
+        result.upstreamStatus < 300
       ? null
       : result.message;
 
@@ -630,7 +647,11 @@ async function fetchAndPersistSnapshot(state: DispatchHubState) {
     ? 0
     : state.consecutiveFailureCount + 1;
 
-  if (result.upstreamStatus && result.upstreamStatus >= 200 && result.upstreamStatus < 300) {
+  if (
+    result.upstreamStatus &&
+    result.upstreamStatus >= 200 &&
+    result.upstreamStatus < 300
+  ) {
     state.telemetry.lastSuccessfulFetchAt = completedAt;
   }
 
@@ -669,6 +690,7 @@ export function ensureDispatchPolling() {
   void ensureRedisSubscription(state).catch(() => {
     return;
   });
+
   void refreshDispatchSnapshot();
 }
 
