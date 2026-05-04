@@ -1129,11 +1129,14 @@ export function DispatchDashboard() {
       refreshDispatchesIfVisible();
     }
 
-    void loadDispatches();
-    connectDispatchStream();
-    const pollIntervalId = window.setInterval(() => {
-      refreshDispatchesIfStreamUnavailable();
-    }, DISPATCH_FALLBACK_POLL_INTERVAL_MS);
+   void loadDispatches();
+
+// Disabled streaming (Vercel timeout issue)
+// connectDispatchStream();
+
+const pollIntervalId = window.setInterval(() => {
+  refreshDispatchesIfVisible();
+}, 5000);
     const refreshOnFocus = () => {
       refreshDispatchesIfVisible(true);
     };
