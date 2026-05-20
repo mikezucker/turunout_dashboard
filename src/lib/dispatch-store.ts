@@ -64,11 +64,8 @@ function shouldRunRetentionCleanup(now = Date.now()) {
   return true;
 }
 
-function shouldPersistRawSnapshot(snapshot: DispatchSnapshot) {
-  return (
-    process.env.DISPATCH_STORE_RAW_SNAPSHOTS === "true" ||
-    snapshot.result.dispatches.length > 0
-  );
+function shouldPersistRawSnapshot() {
+  return process.env.DISPATCH_STORE_RAW_SNAPSHOTS === "true";
 }
 
 function hasUsableDispatchId(dispatch: DispatchRecord) {
@@ -189,7 +186,7 @@ export async function persistDispatchSnapshot(snapshot: DispatchSnapshot) {
 
   try {
     await withTransaction(async (client) => {
-      if (shouldPersistRawSnapshot(snapshot)) {
+      if (shouldPersistRawSnapshot()) {
         await client.query(
           `
             INSERT INTO dispatch_snapshots (
