@@ -20,6 +20,7 @@ export type DispatchEventRecord = {
 };
 
 const RETENTION_CLEANUP_INTERVAL_MS = 60 * 60 * 1000;
+
 const globalForDispatchStore = globalThis as typeof globalThis & {
   __turnoutDispatchRetentionCleanupAt?: number;
 };
@@ -30,13 +31,25 @@ function logDatabaseFallback(scope: string, error: unknown) {
   console.error(`[dispatch-store] ${scope}`, reason);
 }
 
-export function getDispatchRetentionDays() {
-  const rawValue = process.env.DISPATCH_RETENTION_DAYS?.trim() ?? "30";
-  const parsedValue = Number(rawValue);
+function parsePositiveNumber(value: string | undefined, fallback: number) {
+  const parsed = Number(value?.trim());
+  return Number.isFinite(parsed) && parsed > 0 ? parsed : fallback;
+}
 
-  return Number.isFinite(parsedValue) && parsedValue > 0
-    ? parsedValue
-    : 30;
+export function getDispatchRetentionDays() {
+  return parsePositiveNumber(process.env.DISPATCH_RETENTION_DAYS, 30);
+}
+
+export function getDispatchSnapshotRetentionHours() {
+  return parsePositiveNumber(process.env.DISPATCH_SNAPSHOT_RETENTION_HOURS, 6);
+}
+
+export function getDispatchEventRetentionDays() {
+  return parsePositiveNumber(process.env.DISPATCH_EVENT_RETENTION_DAYS, 30);
+}
+
+export function getDispatchIncidentRetentionDays() {
+  return parsePositiveNumber(process.env.DISPATCH_INCIDENT_RETENTION_DAYS, 90);
 }
 
 function shouldRunRetentionCleanup(now = Date.now()) {
@@ -51,15 +64,51 @@ function shouldRunRetentionCleanup(now = Date.now()) {
   return true;
 }
 
+function shouldPersistRawSnapshot(snapshot: DispatchSnapshot) {
+  return (
+    process.env.DISPATCH_STORE_RAW_SNAPSHOTS === "true" ||
+    snapshot.result.dispatches.length > 0
+  );
+}
+
+function hasUsableDispatchId(dispatch: DispatchRecord) {
+  return typeof dispatch.id === "string" && dispatch.id.trim().length > 0;
+}
+
+function hasDispatchOperationalValue(dispatch: DispatchRecord) {
+  return Boolean(
+    dispatch.incidentNumber ||
+      dispatch.address ||
+      dispatch.nature ||
+      dispatch.unit ||
+      dispatch.status ||
+      dispatch.message,
+  );
+}
+
+function isRealDispatch(dispatch: DispatchRecord) {
+  return hasUsableDispatchId(dispatch) && hasDispatchOperationalValue(dispatch);
+}
+
 async function cleanupExpiredDispatchData(client: PoolClient) {
-  const retentionDays = getDispatchRetentionDays();
+  const snapshotRetentionHours = getDispatchSnapshotRetentionHours();
+  const eventRetentionDays = getDispatchEventRetentionDays();
+  const incidentRetentionDays = getDispatchIncidentRetentionDays();
+
+  await client.query(
+    `
+      DELETE FROM dispatch_snapshots
+      WHERE fetched_at < NOW() - make_interval(hours => $1)
+    `,
+    [snapshotRetentionHours],
+  );
 
   await client.query(
     `
       DELETE FROM dispatch_events
       WHERE fetched_at < NOW() - make_interval(days => $1)
     `,
-    [retentionDays],
+    [eventRetentionDays],
   );
 
   await client.query(
@@ -67,15 +116,7 @@ async function cleanupExpiredDispatchData(client: PoolClient) {
       DELETE FROM dispatch_incidents
       WHERE COALESCE(last_seen_at, first_seen_at) < NOW() - make_interval(days => $1)
     `,
-    [retentionDays],
-  );
-
-  await client.query(
-    `
-      DELETE FROM dispatch_snapshots
-      WHERE fetched_at < NOW() - make_interval(days => $1)
-    `,
-    [retentionDays],
+    [incidentRetentionDays],
   );
 }
 
@@ -135,9 +176,7 @@ async function loadExistingIncidents(
     [incidentIds],
   );
 
-  return new Map(
-    result.rows.map((row) => [row.incident_id, row]),
-  );
+  return new Map(result.rows.map((row) => [row.incident_id, row]));
 }
 
 export async function persistDispatchSnapshot(snapshot: DispatchSnapshot) {
@@ -146,48 +185,69 @@ export async function persistDispatchSnapshot(snapshot: DispatchSnapshot) {
   }
 
   const runRetentionCleanup = shouldRunRetentionCleanup();
+  const realDispatches = snapshot.result.dispatches.filter(isRealDispatch);
 
   try {
     await withTransaction(async (client) => {
-      await client.query(
-        `
-          INSERT INTO dispatch_snapshots (
-            fetched_at,
-            revision,
-            configured,
-            upstream_status,
-            message,
-            source_label,
-            result
-          )
-          VALUES ($1, $2, $3, $4, $5, $6, $7::jsonb)
-          ON CONFLICT (fetched_at) DO UPDATE
-          SET
-            revision = EXCLUDED.revision,
-            configured = EXCLUDED.configured,
-            upstream_status = EXCLUDED.upstream_status,
-            message = EXCLUDED.message,
-            source_label = EXCLUDED.source_label,
-            result = EXCLUDED.result
-        `,
-        [
-          snapshot.fetchedAt,
-          snapshot.revision,
-          snapshot.result.configured,
-          snapshot.result.upstreamStatus,
-          snapshot.result.message,
-          snapshot.result.sourceLabel,
-          JSON.stringify(snapshot.result),
-        ],
-      );
+      if (shouldPersistRawSnapshot(snapshot)) {
+        await client.query(
+          `
+            INSERT INTO dispatch_snapshots (
+              fetched_at,
+              revision,
+              configured,
+              upstream_status,
+              message,
+              source_label,
+              result
+            )
+            VALUES ($1, $2, $3, $4, $5, $6, $7::jsonb)
+            ON CONFLICT (fetched_at) DO UPDATE
+            SET
+              revision = EXCLUDED.revision,
+              configured = EXCLUDED.configured,
+              upstream_status = EXCLUDED.upstream_status,
+              message = EXCLUDED.message,
+              source_label = EXCLUDED.source_label,
+              result = EXCLUDED.result
+          `,
+          [
+            snapshot.fetchedAt,
+            snapshot.revision,
+            snapshot.result.configured,
+            snapshot.result.upstreamStatus,
+            snapshot.result.message,
+            snapshot.result.sourceLabel,
+            JSON.stringify({
+              ...snapshot.result,
+              dispatches: realDispatches,
+            }),
+          ],
+        );
+      }
 
-      const incidentIds = snapshot.result.dispatches.map((dispatch) => dispatch.id);
+      const incidentIds = realDispatches.map((dispatch) => dispatch.id);
       const existingIncidents = await loadExistingIncidents(client, incidentIds);
 
-      for (const dispatch of snapshot.result.dispatches) {
+      for (const dispatch of realDispatches) {
         const contentHash = dispatchContentHash(dispatch);
         const previous = existingIncidents.get(dispatch.id);
         const eventType = inferEventType(previous, dispatch, contentHash);
+
+        if (!eventType) {
+          await client.query(
+            `
+              UPDATE dispatch_incidents
+              SET
+                last_seen_at = $2::timestamptz,
+                latest_snapshot_at = $2::timestamptz
+              WHERE incident_id = $1
+            `,
+            [dispatch.id, snapshot.fetchedAt],
+          );
+
+          continue;
+        }
 
         await client.query(
           `
@@ -250,10 +310,6 @@ export async function persistDispatchSnapshot(snapshot: DispatchSnapshot) {
             snapshot.fetchedAt,
           ],
         );
-
-        if (!eventType) {
-          continue;
-        }
 
         await client.query(
           `
