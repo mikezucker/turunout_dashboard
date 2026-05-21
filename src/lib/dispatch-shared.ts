@@ -25,8 +25,8 @@ const CLOSED_STATUS_PATTERNS = [
   /\bout of service\b/i,
 ];
 
-const STALE_OPEN_DISPATCH_MS = 12 * 60 * 60 * 1000;
-const SHORT_LIVED_OPEN_RESOLVE_MS = 4 * 60 * 60 * 1000;
+const STALE_OPEN_DISPATCH_MS = 90 * 60 * 1000;
+const SHORT_LIVED_OPEN_RESOLVE_MS = 90 * 60 * 1000;
 const RESOLVED_MESSAGE_PATTERNS = [
   /\ball units clear\b/i,
   /\ball fd units clear\b/i,
