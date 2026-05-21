@@ -14,6 +14,7 @@ type ApiResponse = {
   configured: boolean;
   upstreamStatus: number | null;
   dispatches: DispatchRecord[];
+  activeDispatches?: DispatchRecord[];
   message: string | null;
   sourceLabel: string | null;
   rawPreview?: unknown;
@@ -881,12 +882,12 @@ export function DispatchDashboard() {
     setFetchedAt(data.fetchedAt);
     setMessage(data.message);
     setSourceLabel(data.sourceLabel);
-    setDispatches(data.dispatches);
+    setDispatches(data.activeDispatches ?? data.dispatches ?? []);
 
     const nextSeenIds = new Set(seenIdsRef.current);
     let latestNewDispatch: DispatchRecord | null = null;
 
-    for (const dispatch of data.dispatches) {
+    for (const dispatch of (data.activeDispatches ?? data.dispatches ?? [])) {
       if (isResolvedDispatch(dispatch) || isStaleOpenDispatch(dispatch)) {
         continue;
       }
@@ -910,7 +911,7 @@ export function DispatchDashboard() {
       }
 
       return (
-        data.dispatches.find(
+        (data.activeDispatches ?? data.dispatches ?? []).find(
           (dispatch) =>
             dispatch.id === current.id &&
             !isResolvedDispatch(dispatch) &&
