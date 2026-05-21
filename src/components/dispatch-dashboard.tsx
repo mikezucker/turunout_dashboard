@@ -1082,36 +1082,8 @@ export function DispatchDashboard() {
     function connectDispatchStream() {
       clearReconnectTimeout();
       eventSource?.close();
+      eventSource = null;
       streamConnected = false;
-      eventSource = new EventSource("/api/dispatch-stream");
-      eventSource.onopen = () => {
-        if (!active) {
-          return;
-        }
-
-        streamConnected = true;
-        setMessage((current) =>
-          current === "Live dispatch stream reconnecting." ? null : current,
-        );
-      };
-      eventSource.addEventListener("dispatch", (event) => {
-        if (!active) {
-          return;
-        }
-
-        const data = JSON.parse((event as MessageEvent<string>).data) as ApiResponse;
-        applyDispatchUpdate(data);
-      });
-      eventSource.onerror = () => {
-        if (!active) {
-          return;
-        }
-
-        streamConnected = false;
-        setMessage("Live dispatch stream reconnecting.");
-        eventSource?.close();
-        scheduleStreamReconnect();
-      };
     }
 
     function refreshDispatchesIfVisible(force = false) {
