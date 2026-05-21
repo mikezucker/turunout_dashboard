@@ -1034,7 +1034,7 @@ export function DispatchDashboard() {
       fetchInFlight = true;
 
       try {
-        const response = await fetch("/api/dispatches", { cache: "no-store" });
+        const response = await fetch("https://new-mtfd-site.vercel.app/api/shared/active-dispatches", { cache: "no-store" });
         const data = (await response.json()) as ApiResponse;
 
         if (!active) {
