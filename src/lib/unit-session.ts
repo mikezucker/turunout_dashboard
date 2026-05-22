@@ -311,32 +311,25 @@ export function getDispatchAliasTokens(unit: UnitProfile | null) {
     return [];
   }
 
-  for (const candidate of resolveUnitGroup(unit)) {
-    if (!candidate) {
-      continue;
-    }
+  aliases.add(unit.id);
+  aliases.add(unit.displayName);
+  aliases.add(unit.radioName);
 
-    aliases.add(candidate.id);
-    aliases.add(candidate.displayName);
-    aliases.add(candidate.apparatus);
-    aliases.add(candidate.radioName);
-
-    if (candidate.apparatusApiId) {
-      aliases.add(candidate.apparatusApiId);
-    }
-
-    for (const alias of candidate.dispatchAliases ?? []) {
-      aliases.add(alias);
-    }
-
-    for (const alias of deriveDispatchAliases(candidate)) {
-      aliases.add(alias);
-    }
-
-    aliases.add(`${candidate.apparatus} ${candidate.id}`);
-    aliases.add(`${candidate.apparatus} ${candidate.radioName}`);
-    aliases.add(`${candidate.apparatus}${candidate.radioName}`);
+  if (unit.apparatusApiId) {
+    aliases.add(unit.apparatusApiId);
   }
+
+  for (const alias of unit.dispatchAliases ?? []) {
+    aliases.add(alias);
+  }
+
+  for (const alias of deriveDispatchAliases(unit)) {
+    aliases.add(alias);
+  }
+
+  aliases.add(`${unit.apparatus} ${unit.id}`);
+  aliases.add(`${unit.apparatus} ${unit.radioName}`);
+  aliases.add(`${unit.apparatus}${unit.radioName}`);
 
   return [...aliases];
 }

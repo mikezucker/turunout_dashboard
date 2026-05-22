@@ -553,13 +553,46 @@ function normalizeUnitToken(value: string) {
   return value.trim().toLowerCase().replace(/[^a-z0-9]/g, "");
 }
 
-function dispatchUnitTokens(unitValue: string | null) {
-  if (!unitValue) {
+function isSafeUnitToken(value: string) {
+  if (value.length < 2) {
+    return false;
+  }
+
+  return !new Set([
+    "engine",
+    "eng",
+    "truck",
+    "ladder",
+    "rescue",
+    "station",
+    "sta",
+    "fire",
+    "ems",
+    "unit",
+    "company",
+  ]).has(value);
+}
+
+function dispatchUnitTokens(dispatch: DispatchRecord) {
+  const raw = dispatch.raw as Record<string, unknown> | null;
+
+  const rawUnitCodes = Array.isArray(raw?.unit_codes)
+    ? raw.unit_codes
+        .filter((value): value is string => typeof value === "string")
+        .map(normalizeUnitToken)
+        .filter(Boolean)
+    : [];
+
+  if (rawUnitCodes.length > 0) {
+    return new Set(rawUnitCodes);
+  }
+
+  if (!dispatch.unit) {
     return new Set<string>();
   }
 
   return new Set(
-    unitValue
+    dispatch.unit
       .split(",")
       .map((part) => normalizeUnitToken(part))
       .filter(Boolean),
@@ -588,11 +621,22 @@ export function filterDispatchesForUnit(
     ]
       .filter((value): value is string => typeof value === "string")
       .map(normalizeUnitToken)
-      .filter(Boolean),
+      .filter(isSafeUnitToken),
   );
 
   return dispatches.filter((dispatch) => {
-    const tokens = dispatchUnitTokens(dispatch.unit);
+    const tokens = dispatchUnitTokens(dispatch);
+
+    if (process.env.TURNOUT_FILTER_DEBUG === "1") {
+      console.log("TURNOUT_FILTER_DEBUG", {
+        unitId: unit.id,
+        unitDisplayName: unit.displayName,
+        dispatchId: dispatch.id,
+        dispatchUnit: dispatch.unit,
+        candidateTokens: [...candidateTokens],
+        dispatchTokens: [...tokens],
+      });
+    }
 
     if (tokens.size === 0) {
       return false;
