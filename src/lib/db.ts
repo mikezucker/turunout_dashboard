@@ -84,9 +84,10 @@ function hasDatabaseUrlConfigured() {
 
 function getBootstrapDatabaseCandidate() {
   const candidates = [
-    ["DATABASE_URL", process.env.DATABASE_URL],
     ["POSTGRES_URL_NON_POOLING", process.env.POSTGRES_URL_NON_POOLING],
+    ["DIRECT_URL", process.env.DIRECT_URL],
     ["POSTGRES_URL", process.env.POSTGRES_URL],
+    ["DATABASE_URL", process.env.DATABASE_URL],
   ] satisfies Array<[string, string | undefined]>;
 
   for (const [name, candidate] of candidates) {
