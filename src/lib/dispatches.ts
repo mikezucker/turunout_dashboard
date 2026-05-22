@@ -213,7 +213,8 @@ function pickString(record: Dictionary, keys: string[]): string | null {
 
 function joinStringValues(...values: Array<string | null>) {
   const parts = values.filter(
-    (value): value is string => typeof value === "string" && value.trim().length > 0,
+    (value): value is string =>
+      typeof value === "string" && value.trim().length > 0,
   );
 
   return parts.length > 0 ? parts.join(", ") : null;
@@ -240,7 +241,9 @@ function parseLastPageFromLinkHeader(linkHeader: string | null) {
     return 1;
   }
 
-  const lastMatch = linkHeader.match(/<[^>]*[?&]page=(\d+)[^>]*>;\s*rel="last"/i);
+  const lastMatch = linkHeader.match(
+    /<[^>]*[?&]page=(\d+)[^>]*>;\s*rel="last"/i,
+  );
 
   if (lastMatch) {
     return Number(lastMatch[1]);
@@ -280,8 +283,7 @@ function getTimeZoneOffsetMs(date: Date, timeZone: string) {
   }
 
   const [, sign, hours, minutes = "00"] = match;
-  const offsetMs =
-    (Number(hours) * 60 + Number(minutes)) * 60 * 1000;
+  const offsetMs = (Number(hours) * 60 + Number(minutes)) * 60 * 1000;
 
   return sign === "+" ? offsetMs : -offsetMs;
 }
@@ -302,7 +304,10 @@ function parseCadDateInEasternTime({
   seconds: number;
 }) {
   const wallClockAsUtc = Date.UTC(year, month - 1, day, hours, minutes, seconds);
-  const offsetMs = getTimeZoneOffsetMs(new Date(wallClockAsUtc), DISPATCH_TIME_ZONE);
+  const offsetMs = getTimeZoneOffsetMs(
+    new Date(wallClockAsUtc),
+    DISPATCH_TIME_ZONE,
+  );
 
   return new Date(wallClockAsUtc - offsetMs);
 }
@@ -370,16 +375,23 @@ export function resolveDutyDispatchTimestampFromCadMessage({
   );
 
   if (interrogationIndex >= 0) {
-    return parseCadTimestamp(timestampAtOrBefore(interrogationIndex) ?? "")?.toISOString() ?? null;
+    return (
+      parseCadTimestamp(timestampAtOrBefore(interrogationIndex) ?? "")?.toISOString() ??
+      null
+    );
   }
 
   const dispatchCodeIndex = lines.findIndex((line) => /Dispatch Code:/i.test(line));
 
   if (dispatchCodeIndex >= 0) {
-    return parseCadTimestamp(timestampAtOrBefore(dispatchCodeIndex) ?? "")?.toISOString() ?? null;
+    return (
+      parseCadTimestamp(timestampAtOrBefore(dispatchCodeIndex) ?? "")?.toISOString() ??
+      null
+    );
   }
 
-  const firstTimestampedLine = lines.find((line) => timestampPattern.test(line)) ?? null;
+  const firstTimestampedLine =
+    lines.find((line) => timestampPattern.test(line)) ?? null;
 
   return parseCadTimestamp(firstTimestampedLine ?? "")?.toISOString() ?? null;
 }
@@ -397,7 +409,9 @@ function extractLatestCadActivityTimestamp(message: string | null) {
     return null;
   }
 
-  const matches = message.matchAll(/\[(\d{2}\/\d{2}\/\d{2} \d{2}:\d{2}:\d{2})[^\]]*\]/g);
+  const matches = message.matchAll(
+    /\[(\d{2}\/\d{2}\/\d{2} \d{2}:\d{2}:\d{2})[^\]]*\]/g,
+  );
   let latestTimestamp: number | null = null;
 
   for (const match of matches) {
@@ -414,7 +428,9 @@ function extractLatestCadActivityTimestamp(message: string | null) {
     }
   }
 
-  return latestTimestamp === null ? null : new Date(latestTimestamp).toISOString();
+  return latestTimestamp === null
+    ? null
+    : new Date(latestTimestamp).toISOString();
 }
 
 function normalizeRecord(item: unknown, index: number): DispatchRecord | null {
@@ -528,9 +544,10 @@ async function fetchDispatchPage(
     }
   }
 
-  throw lastError instanceof Error ? lastError : new Error("FirstDue request failed.");
+  throw lastError instanceof Error
+    ? lastError
+    : new Error("FirstDue request failed.");
 }
-
 
 function normalizeUnitToken(value: string) {
   return value.trim().toLowerCase().replace(/[^a-z0-9]/g, "");
@@ -550,19 +567,7 @@ function dispatchUnitTokens(unitValue: string | null) {
 }
 
 function matchesCandidateToken(dispatchToken: string, candidateToken: string) {
-  if (dispatchToken === candidateToken) {
-    return true;
-  }
-
-  // Some live feeds prefix radio aliases with an agency code, e.g. F22E2.
-  // Allow those tokens to match the unit's short alias without relying on a
-  // work-order apparatus record ID being reusable as a dispatch unit code.
-  return (
-    candidateToken.length >= 2 &&
-    candidateToken.length <= 4 &&
-    dispatchToken.length > candidateToken.length &&
-    dispatchToken.endsWith(candidateToken)
-  );
+  return dispatchToken === candidateToken;
 }
 
 export function filterDispatchesForUnit(
@@ -575,13 +580,8 @@ export function filterDispatchesForUnit(
 
   const candidateTokens = new Set(
     [
-      unit.id,
-      unit.displayName,
-      unit.apparatus,
-      unit.station,
       unit.apparatusApiId,
       unit.radioName,
-      `${unit.apparatus} ${unit.id}`,
       `${unit.apparatus} ${unit.radioName}`,
       `${unit.apparatus}${unit.radioName}`,
       ...(unit.dispatchAliases ?? []),
@@ -677,10 +677,7 @@ export function describeFirstDueHttpFailure(status: number, payload?: unknown) {
 }
 
 function describeFetchFailure(error: unknown, config: PollConfig) {
-  if (
-    error instanceof Error &&
-    error.name === "AbortError"
-  ) {
+  if (error instanceof Error && error.name === "AbortError") {
     return `FirstDue request timed out after ${config.apiTimeoutMs} ms. Check FIRSTDUE_API_URL, auth, and network access.`;
   }
 
@@ -755,7 +752,11 @@ export async function fetchFirstDueDispatches(): Promise<DispatchFetchResult> {
 
         allDispatches.push(...currentPage.dispatches);
 
-        if (!currentPage.dispatches.some((dispatch) => isOpenDispatchStatus(dispatch.status))) {
+        if (
+          !currentPage.dispatches.some((dispatch) =>
+            isOpenDispatchStatus(dispatch.status),
+          )
+        ) {
           break;
         }
       } catch (error) {
@@ -767,7 +768,9 @@ export async function fetchFirstDueDispatches(): Promise<DispatchFetchResult> {
       }
     }
 
-    const dispatches = sortDispatchesNewestFirst(dedupeDispatches(allDispatches));
+    const dispatches = sortDispatchesNewestFirst(
+      dedupeDispatches(allDispatches),
+    );
     const response = firstPage.response;
     const payload = firstPage.payload;
 
@@ -775,13 +778,11 @@ export async function fetchFirstDueDispatches(): Promise<DispatchFetchResult> {
       configured: true,
       upstreamStatus: response.status,
       dispatches,
-      message:
-        response.ok
-          ? supplementalPageFailure
-          : describeFirstDueHttpFailure(response.status, payload),
+      message: response.ok
+        ? supplementalPageFailure
+        : describeFirstDueHttpFailure(response.status, payload),
       sourceLabel: describeSource(apiUrl),
-      rawPreview:
-        typeof payload === "string" ? payload.slice(0, 500) : payload,
+      rawPreview: typeof payload === "string" ? payload.slice(0, 500) : payload,
     };
   } catch (error) {
     return {
