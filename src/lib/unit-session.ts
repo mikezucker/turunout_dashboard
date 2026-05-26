@@ -288,10 +288,10 @@ function deriveDispatchAliases(
   }
 
   const shorthandByApparatus: Record<string, string[]> = {
-    engine: ["eng"],
+    engine: ["eng", "e", "f22e"],
     truck: ["trk", "truck"],
-    ladder: ["lad", "ldr"],
-    rescue: ["res"],
+    ladder: ["lad", "ldr", "f22l"],
+    rescue: ["res", "f22r"],
     squad: ["sqd"],
     tanker: ["tnk"],
     brush: ["brs"],
@@ -311,27 +311,30 @@ export function getDispatchAliasTokens(unit: UnitProfile | null) {
     return [];
   }
 
-  aliases.add(unit.id);
-  aliases.add(unit.displayName);
-  aliases.add(unit.radioName);
+  for (const candidate of resolveUnitGroup(unit)) {
+    aliases.add(candidate.id);
+    aliases.add(candidate.displayName);
+    aliases.add(candidate.station);
+    aliases.add(candidate.radioName);
 
-  if (unit.apparatusApiId) {
-    aliases.add(unit.apparatusApiId);
+    if (candidate.apparatusApiId) {
+      aliases.add(candidate.apparatusApiId);
+    }
+
+    for (const alias of candidate.dispatchAliases ?? []) {
+      aliases.add(alias);
+    }
+
+    for (const alias of deriveDispatchAliases(candidate)) {
+      aliases.add(alias);
+    }
+
+    aliases.add(`${candidate.apparatus} ${candidate.id}`);
+    aliases.add(`${candidate.apparatus} ${candidate.radioName}`);
+    aliases.add(`${candidate.apparatus}${candidate.radioName}`);
   }
 
-  for (const alias of unit.dispatchAliases ?? []) {
-    aliases.add(alias);
-  }
-
-  for (const alias of deriveDispatchAliases(unit)) {
-    aliases.add(alias);
-  }
-
-  aliases.add(`${unit.apparatus} ${unit.id}`);
-  aliases.add(`${unit.apparatus} ${unit.radioName}`);
-  aliases.add(`${unit.apparatus}${unit.radioName}`);
-
-  return [...aliases];
+  return [...aliases].filter((alias) => alias.trim().length > 0);
 }
 
 function getSecret() {

@@ -19,14 +19,11 @@ const CLOSED_STATUS_PATTERNS = [
   /\bcancelled?\b/i,
   /\bservice complete\b/i,
   /\bincident complete\b/i,
-  /\bavailable\b/i,
-  /\bback in service\b/i,
-  /\breturn(?:ed)? to service\b/i,
-  /\bout of service\b/i,
 ];
 
 const STALE_OPEN_DISPATCH_MS = 90 * 60 * 1000;
 const SHORT_LIVED_OPEN_RESOLVE_MS = 90 * 60 * 1000;
+
 const RESOLVED_MESSAGE_PATTERNS = [
   /\ball units clear\b/i,
   /\ball fd units clear\b/i,
@@ -36,10 +33,8 @@ const RESOLVED_MESSAGE_PATTERNS = [
   /\bservice complete\b/i,
   /\bincident complete\b/i,
   /\bcommand terminated\b/i,
-  /\bavailable\b/i,
-  /\bback in service\b/i,
-  /\breturn(?:ed)? to service\b/i,
 ];
+
 const SHORT_LIVED_CALL_TYPES = new Set([
   "ASSIST POLICE",
   "PUBLIC SERVICE",
@@ -67,11 +62,7 @@ export function isResolvedDispatch(
     return true;
   }
 
-  if (!dispatch.message) {
-    return false;
-  }
-
-  const message = dispatch.message;
+  const message = dispatch.message ?? "";
   if (RESOLVED_MESSAGE_PATTERNS.some((pattern) => pattern.test(message))) {
     return true;
   }

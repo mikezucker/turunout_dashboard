@@ -386,7 +386,6 @@ async function fetchAndPersistSnapshot(state: DispatchHubState) {
     result = createFallbackResult(error);
   }
 
-  const snapshot = await persistDatabaseSnapshot(state, result);
   const completedAt = new Date().toISOString();
 
   state.telemetry.lastRefreshCompletedAt = completedAt;
@@ -394,25 +393,37 @@ async function fetchAndPersistSnapshot(state: DispatchHubState) {
   state.telemetry.lastUpstreamStatus = result.upstreamStatus;
   state.telemetry.lastResultMessage = result.message;
 
-  state.telemetry.lastError = state.telemetry.lastPersistError
-    ? state.telemetry.lastPersistError
-    : result.upstreamStatus &&
-        result.upstreamStatus >= 200 &&
-        result.upstreamStatus < 300
-      ? null
-      : result.message;
+  const successfulResult = isSuccessfulResult(result);
 
-  state.consecutiveFailureCount = isSuccessfulResult(result)
+  state.consecutiveFailureCount = successfulResult
     ? 0
     : state.consecutiveFailureCount + 1;
 
-  if (
-    result.upstreamStatus &&
-    result.upstreamStatus >= 200 &&
-    result.upstreamStatus < 300
-  ) {
-    state.telemetry.lastSuccessfulFetchAt = completedAt;
+  if (!successfulResult) {
+    state.telemetry.lastError = result.message;
+
+    const fallbackSnapshot =
+      state.snapshot ?? (await getLatestPersistedDispatchSnapshot());
+
+    if (fallbackSnapshot) {
+      applySnapshot(state, fallbackSnapshot, false);
+      return fallbackSnapshot;
+    }
+
+    const failedSnapshot: DispatchSnapshot = {
+      fetchedAt: completedAt,
+      revision: state.revision,
+      result,
+    };
+
+    applySnapshot(state, failedSnapshot, false);
+    return failedSnapshot;
   }
+
+  const snapshot = await persistDatabaseSnapshot(state, result);
+
+  state.telemetry.lastError = state.telemetry.lastPersistError ?? null;
+  state.telemetry.lastSuccessfulFetchAt = completedAt;
 
   return snapshot;
 }
@@ -445,11 +456,7 @@ export async function getDispatchSnapshot() {
 
   if (state.snapshot) {
     if (shouldRefreshSnapshotOnRequest(state.snapshot)) {
-      try {
-        return await refreshDispatchSnapshot();
-      } catch {
-        return state.snapshot;
-      }
+      void refreshDispatchSnapshot();
     }
 
     return state.snapshot;
@@ -461,11 +468,7 @@ export async function getDispatchSnapshot() {
     applySnapshot(state, persistedSnapshot, false);
 
     if (shouldRefreshSnapshotOnRequest(persistedSnapshot)) {
-      try {
-        return await refreshDispatchSnapshot();
-      } catch {
-        return persistedSnapshot;
-      }
+      void refreshDispatchSnapshot();
     }
 
     return persistedSnapshot;

@@ -613,6 +613,10 @@ export function filterDispatchesForUnit(
 
   const candidateTokens = new Set(
     [
+      unit.id,
+      unit.displayName,
+      unit.station,
+      unit.apparatus,
       unit.apparatusApiId,
       unit.radioName,
       `${unit.apparatus} ${unit.radioName}`,
