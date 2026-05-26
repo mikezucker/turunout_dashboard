@@ -2,10 +2,7 @@
 
 import Image from "next/image";
 import { useEffect, useMemo, useRef, useState } from "react";
-import {
-  isResolvedDispatch,
-  isStaleOpenDispatch,
-} from "@/lib/dispatch-shared";
+import { isResolvedDispatch, isStaleOpenDispatch } from "@/lib/dispatch-shared";
 import type { DispatchRecord } from "@/lib/dispatch-shared";
 import type { SerializedUnitProfile } from "@/lib/unit-session";
 
@@ -304,10 +301,7 @@ function parseTimestamp(value: string | null) {
   return parsed;
 }
 
-function formatDurationBetween(
-  startValue: string | null,
-  now: number,
-) {
+function formatDurationBetween(startValue: string | null, now: number) {
   const start = parseTimestamp(startValue);
 
   if (!start) {
@@ -447,14 +441,15 @@ function eventToneClasses(eventType: string) {
   }
 }
 
-function formatRelativeEventOffset(
-  dispatchAt: string | null,
-  eventAt: string,
-) {
+function formatRelativeEventOffset(dispatchAt: string | null, eventAt: string) {
   const start = timestampValue(dispatchAt);
   const eventTime = timestampValue(eventAt);
 
-  if (!Number.isFinite(start) || !Number.isFinite(eventTime) || eventTime < start) {
+  if (
+    !Number.isFinite(start) ||
+    !Number.isFinite(eventTime) ||
+    eventTime < start
+  ) {
     return "Offset unavailable";
   }
 
@@ -479,7 +474,9 @@ function dispatchPriorityScore(dispatch: DispatchRecord, now: number) {
   const status = dispatch.status?.trim().toLowerCase() ?? "";
   const nature = dispatch.nature ?? "";
   const dispatchTime = timestampValue(dispatch.dispatchedAt);
-  const activityTime = timestampValue(dispatch.lastActivityAt ?? dispatch.dispatchedAt);
+  const activityTime = timestampValue(
+    dispatch.lastActivityAt ?? dispatch.dispatchedAt,
+  );
   const dispatchAgeMs = Number.isFinite(dispatchTime)
     ? Math.max(0, now - dispatchTime)
     : Number.POSITIVE_INFINITY;
@@ -570,7 +567,11 @@ function weatherArtwork(summary: string) {
     );
   }
 
-  if (normalized.includes("snow") || normalized.includes("sleet") || normalized.includes("ice")) {
+  if (
+    normalized.includes("snow") ||
+    normalized.includes("sleet") ||
+    normalized.includes("ice")
+  ) {
     return (
       <div className="relative h-56 w-56">
         <div className="absolute left-10 top-12 h-24 w-24 rounded-full bg-[rgba(255,248,220,0.88)]" />
@@ -581,7 +582,11 @@ function weatherArtwork(summary: string) {
     );
   }
 
-  if (normalized.includes("rain") || normalized.includes("shower") || normalized.includes("drizzle")) {
+  if (
+    normalized.includes("rain") ||
+    normalized.includes("shower") ||
+    normalized.includes("drizzle")
+  ) {
     return (
       <div className="relative h-56 w-56">
         <div className="absolute left-12 top-18 h-20 w-36 rounded-full bg-white/85 blur-[1px]" />
@@ -794,7 +799,9 @@ function DepartmentLogo({
           Morris Township Fire
         </p>
         {subtitle ? (
-          <p className={`mt-1 text-xs sm:text-sm ${dark ? "text-white/72" : "text-black/60"}`}>
+          <p
+            className={`mt-1 text-xs sm:text-sm ${dark ? "text-white/72" : "text-black/60"}`}
+          >
             {subtitle}
           </p>
         ) : null}
@@ -810,9 +817,8 @@ export function DispatchDashboard() {
   const [stickyMessage, setStickyMessage] = useState<string | null>(null);
   const [sourceLabel, setSourceLabel] = useState<string | null>(null);
   const [configured, setConfigured] = useState(true);
-  const [featuredDispatch, setFeaturedDispatch] = useState<DispatchRecord | null>(
-    null,
-  );
+  const [featuredDispatch, setFeaturedDispatch] =
+    useState<DispatchRecord | null>(null);
   const [unit, setUnit] = useState<SerializedUnitProfile | null>(null);
   const [workOrders, setWorkOrders] = useState<
     Array<{ id: string; title: string; status: string | null }>
@@ -820,7 +826,9 @@ export function DispatchDashboard() {
   const [workOrderGroups, setWorkOrderGroups] = useState<
     WorkOrdersResponse["workOrderGroups"]
   >([]);
-  const [workOrdersMessage, setWorkOrdersMessage] = useState<string | null>(null);
+  const [workOrdersMessage, setWorkOrdersMessage] = useState<string | null>(
+    null,
+  );
   const [scheduleDate, setScheduleDate] = useState<string | null>(null);
   const [scheduleEntries, setScheduleEntries] = useState<
     ScheduleResponse["entries"]
@@ -828,24 +836,25 @@ export function DispatchDashboard() {
   const [scheduleMessage, setScheduleMessage] = useState<string | null>(null);
   const [stationNotes, setStationNotes] = useState<DashboardNotesItem[]>([]);
   const [officerNotes, setOfficerNotes] = useState<DashboardNotesItem[]>([]);
-  const [dashboardNotesMessage, setDashboardNotesMessage] = useState<string | null>(null);
+  const [dashboardNotesMessage, setDashboardNotesMessage] = useState<
+    string | null
+  >(null);
   const [statsYear, setStatsYear] = useState<number>(new Date().getFullYear());
   const [liveStatsAvailable, setLiveStatsAvailable] = useState(false);
   const [totalDepartmentCalls, setTotalDepartmentCalls] = useState(0);
   const [totalApparatusCalls, setTotalApparatusCalls] = useState(0);
   const [emsCalls, setEmsCalls] = useState(0);
   const [fireRescueCalls, setFireRescueCalls] = useState(0);
-  const [rollingWindows, setRollingWindows] = useState<StatsResponse["rollingWindows"]>(
-    [],
-  );
+  const [rollingWindows, setRollingWindows] = useState<
+    StatsResponse["rollingWindows"]
+  >([]);
   const [statsMessage, setStatsMessage] = useState<string | null>(null);
   const [statsSourceLabel, setStatsSourceLabel] = useState<string | null>(null);
-  const [dispatchHealth, setDispatchHealth] = useState<DispatchHealthResponse | null>(
-    null,
-  );
-  const [dispatchHealthMessage, setDispatchHealthMessage] = useState<string | null>(
-    null,
-  );
+  const [dispatchHealth, setDispatchHealth] =
+    useState<DispatchHealthResponse | null>(null);
+  const [dispatchHealthMessage, setDispatchHealthMessage] = useState<
+    string | null
+  >(null);
   const [timelineEvents, setTimelineEvents] = useState<
     DispatchEventsResponse["events"]
   >([]);
@@ -870,12 +879,11 @@ export function DispatchDashboard() {
   const unitScopeLabel = isStationScope ? "Station" : "Unit";
   const responseLabel = isStationScope ? "Company" : "Apparatus";
   const responseLabelPlural = isStationScope ? "companies" : "apparatus";
-  const unitMembershipSummary =
-    unit?.memberUnitDisplayNames.length
-      ? unit.memberUnitDisplayNames.join(" / ")
-      : unit
-        ? `${unit.apparatus} / ${unit.station} / ${unit.radioName}`
-        : "";
+  const unitMembershipSummary = unit?.memberUnitDisplayNames.length
+    ? unit.memberUnitDisplayNames.join(" / ")
+    : unit
+      ? `${unit.apparatus} / ${unit.station} / ${unit.radioName}`
+      : "";
 
   function applyDispatchUpdate(data: ApiResponse) {
     setConfigured(data.configured);
@@ -887,7 +895,7 @@ export function DispatchDashboard() {
     const nextSeenIds = new Set(seenIdsRef.current);
     let latestNewDispatch: DispatchRecord | null = null;
 
-    for (const dispatch of (data.activeDispatches ?? data.dispatches ?? [])) {
+    for (const dispatch of data.activeDispatches ?? data.dispatches ?? []) {
       if (isResolvedDispatch(dispatch) || isStaleOpenDispatch(dispatch)) {
         continue;
       }
@@ -921,10 +929,7 @@ export function DispatchDashboard() {
     });
   }
   const activeDispatches = useMemo(
-    () =>
-      dispatches.filter(
-        (dispatch) => !isResolvedDispatch(dispatch),
-      ),
+    () => dispatches.filter((dispatch) => !isResolvedDispatch(dispatch)),
     [dispatches],
   );
   const freshDispatches = useMemo(
@@ -1102,14 +1107,14 @@ export function DispatchDashboard() {
       refreshDispatchesIfVisible();
     }
 
-   void loadDispatches();
+    void loadDispatches();
 
-// Disabled streaming (Vercel timeout issue)
-// connectDispatchStream();
+    // Disabled streaming (Vercel timeout issue)
+    // connectDispatchStream();
 
-const pollIntervalId = window.setInterval(() => {
-  refreshDispatchesIfVisible();
-}, 5000);
+    const pollIntervalId = window.setInterval(() => {
+      refreshDispatchesIfVisible();
+    }, 5000);
     const refreshOnFocus = () => {
       refreshDispatchesIfVisible(true);
     };
@@ -1125,7 +1130,10 @@ const pollIntervalId = window.setInterval(() => {
       clearReconnectTimeout();
       window.clearInterval(pollIntervalId);
       window.removeEventListener("focus", refreshOnFocus);
-      document.removeEventListener("visibilitychange", refreshOnVisibilityChange);
+      document.removeEventListener(
+        "visibilitychange",
+        refreshOnVisibilityChange,
+      );
       eventSource?.close();
     };
   }, [unitId]);
@@ -1162,7 +1170,9 @@ const pollIntervalId = window.setInterval(() => {
         setWorkOrders([]);
         setWorkOrderGroups([]);
         setWorkOrdersMessage(
-          error instanceof Error ? error.message : "Failed to load work orders.",
+          error instanceof Error
+            ? error.message
+            : "Failed to load work orders.",
         );
       }
     }
@@ -1203,7 +1213,10 @@ const pollIntervalId = window.setInterval(() => {
     }
 
     loadWeather();
-    const intervalId = window.setInterval(loadWeather, WEATHER_POLL_INTERVAL_MS);
+    const intervalId = window.setInterval(
+      loadWeather,
+      WEATHER_POLL_INTERVAL_MS,
+    );
 
     return () => {
       active = false;
@@ -1292,7 +1305,9 @@ const pollIntervalId = window.setInterval(() => {
         setStationNotes([]);
         setOfficerNotes([]);
         setDashboardNotesMessage(
-          error instanceof Error ? error.message : "Failed to load dashboard notes.",
+          error instanceof Error
+            ? error.message
+            : "Failed to load dashboard notes.",
         );
       }
     }
@@ -1399,7 +1414,9 @@ const pollIntervalId = window.setInterval(() => {
 
         if (!response.ok || !("telemetry" in data)) {
           setDispatchHealth(null);
-          setDispatchHealthMessage(responseMessage ?? "Dispatch diagnostics unavailable.");
+          setDispatchHealthMessage(
+            responseMessage ?? "Dispatch diagnostics unavailable.",
+          );
           return;
         }
 
@@ -1412,13 +1429,18 @@ const pollIntervalId = window.setInterval(() => {
 
         setDispatchHealth(null);
         setDispatchHealthMessage(
-          error instanceof Error ? error.message : "Dispatch diagnostics unavailable.",
+          error instanceof Error
+            ? error.message
+            : "Dispatch diagnostics unavailable.",
         );
       }
     }
 
     void loadDispatchHealth();
-    const intervalId = window.setInterval(loadDispatchHealth, HEALTH_POLL_INTERVAL_MS);
+    const intervalId = window.setInterval(
+      loadDispatchHealth,
+      HEALTH_POLL_INTERVAL_MS,
+    );
 
     return () => {
       active = false;
@@ -1447,25 +1469,29 @@ const pollIntervalId = window.setInterval(() => {
       return freshDispatches;
     }
 
-    return freshDispatches.filter((dispatch) => dispatch.id !== primaryDispatch.id);
+    return freshDispatches.filter(
+      (dispatch) => dispatch.id !== primaryDispatch.id,
+    );
   }, [freshDispatches, primaryDispatch]);
 
   const featuredElapsed = useMemo(
     () => formatDurationBetween(primaryDispatch?.dispatchedAt ?? null, now),
     [primaryDispatch?.dispatchedAt, now],
   );
-  const lastHealthyFetchAt = dispatchHealth?.telemetry.lastSuccessfulFetchAt ?? fetchedAt;
+  const lastHealthyFetchAt =
+    dispatchHealth?.telemetry.lastSuccessfulFetchAt ?? fetchedAt;
   const staleFeedAgeMs = useMemo(() => {
     const parsed = parseTimestamp(lastHealthyFetchAt);
     return parsed ? Math.max(0, now - parsed.getTime()) : null;
   }, [lastHealthyFetchAt, now]);
-  const staleFeedLevel = staleFeedAgeMs === null
-    ? "unknown"
-    : staleFeedAgeMs >= STALE_FEED_CRITICAL_MS
-      ? "critical"
-      : staleFeedAgeMs >= STALE_FEED_WARNING_MS
-        ? "warning"
-        : "healthy";
+  const staleFeedLevel =
+    staleFeedAgeMs === null
+      ? "unknown"
+      : staleFeedAgeMs >= STALE_FEED_CRITICAL_MS
+        ? "critical"
+        : staleFeedAgeMs >= STALE_FEED_WARNING_MS
+          ? "warning"
+          : "healthy";
   const staleFeedMessage =
     staleFeedLevel === "critical"
       ? `Live dispatch feed is stale. Last healthy refresh ${formatElapsedSince(lastHealthyFetchAt, now)}.`
@@ -1600,7 +1626,9 @@ const pollIntervalId = window.setInterval(() => {
       return {
         id: `work-orders:${group.apparatusApiId}`,
         label: "Work Orders",
-        eyebrow: hasMultipleGroups ? `${group.displayName} Queue` : "Maintenance Queue",
+        eyebrow: hasMultipleGroups
+          ? `${group.displayName} Queue`
+          : "Maintenance Queue",
         title: hasMultipleGroups
           ? `${group.displayName} Work Orders`
           : `${unit.displayName} ${responseLabel} Work Orders`,
@@ -1609,7 +1637,9 @@ const pollIntervalId = window.setInterval(() => {
           : `${
               workOrders.length
             } item${workOrders.length === 1 ? "" : "s"} currently open for this ${isStationScope ? "station" : "unit"}.${
-              unit.coverageDisplayName ? ` Covered by ${unit.coverageDisplayName}.` : ""
+              unit.coverageDisplayName
+                ? ` Covered by ${unit.coverageDisplayName}.`
+                : ""
             }`,
         contentVersion: `work-orders:${group.apparatusApiId}:${group.workOrders.length}:${workOrdersMessage ?? ""}`,
         scrollable: true,
@@ -1629,7 +1659,10 @@ const pollIntervalId = window.setInterval(() => {
         ),
         content: (
           <div className="grid h-full min-h-0 gap-5 xl:grid-cols-[minmax(0,1.3fr)_minmax(320px,0.7fr)]">
-            <div ref={workOrdersListRef} className="min-h-0 overflow-y-auto sm:pr-3">
+            <div
+              ref={workOrdersListRef}
+              className="min-h-0 overflow-y-auto sm:pr-3"
+            >
               <ul className="grid gap-4">
                 {group.workOrders.length > 0 ? (
                   group.workOrders.map((order) => (
@@ -1637,7 +1670,9 @@ const pollIntervalId = window.setInterval(() => {
                       key={`${group.apparatusApiId}:${order.id}`}
                       className="rounded-[1.8rem] border border-white/12 bg-white/6 px-5 py-5 sm:px-8 sm:py-7"
                     >
-                      <p className="text-[1.5rem] font-medium leading-tight text-white sm:text-[2.15rem]">{order.title}</p>
+                      <p className="text-[1.5rem] font-medium leading-tight text-white sm:text-[2.15rem]">
+                        {order.title}
+                      </p>
                       {order.status ? (
                         <p className="mt-4 font-mono text-sm uppercase tracking-[0.18em] text-white/56">
                           {order.status}
@@ -1666,7 +1701,9 @@ const pollIntervalId = window.setInterval(() => {
               <p className="mt-5 text-[3.2rem] font-semibold tracking-[-0.06em] text-white sm:text-[5.25rem]">
                 {group.workOrders.length}
               </p>
-              <p className="mt-3 text-lg text-white/72 sm:text-xl">Open work orders</p>
+              <p className="mt-3 text-lg text-white/72 sm:text-xl">
+                Open work orders
+              </p>
               <p className="mt-6 text-base leading-7 text-white/72 sm:mt-8 sm:text-lg sm:leading-8">
                 {workOrdersMessage ??
                   (hasMultipleGroups
@@ -1681,172 +1718,192 @@ const pollIntervalId = window.setInterval(() => {
 
     const dashboardNotesScreen =
       totalDashboardNotes > 0
-        ? [{
-        id: "dashboard-notes",
-        label: "Notes",
-        eyebrow: "Company Notes",
-        title: `${companyBrand(unit).name} Notes Board`,
-        description:
-          dashboardNotesMessage ??
-          `${totalDashboardNotes} active dashboard note${totalDashboardNotes === 1 ? "" : "s"} for ${unit.station}.`,
-        contentVersion: `dashboard-notes:${unit.station}:${stationNotes.map((note) => note.id).join("|")}:${officerNotes.map((note) => note.id).join("|")}:${dashboardNotesMessage ?? ""}`,
-        scrollable: true,
-        backgroundStyle: {
-          background:
-            "radial-gradient(circle at 14% 18%, rgba(255,227,168,0.12), transparent 18%), radial-gradient(circle at 82% 16%, rgba(255,153,115,0.12), transparent 22%), linear-gradient(145deg, rgba(49,19,15,0.99), rgba(89,34,24,0.98) 48%, rgba(33,13,10,0.99))",
-        },
-        artwork: (
-          <div className="pointer-events-none absolute inset-0 overflow-hidden">
-            <div className="absolute inset-[7%] rounded-[2.6rem] border border-[#f4d5a4]/14 bg-[linear-gradient(135deg,rgba(145,82,44,0.16),rgba(92,49,28,0.22))]" />
-            <div className="absolute inset-[8.5%] rounded-[2.2rem] border border-white/6" />
-            <div className="absolute left-[14%] top-[12%] h-5 w-5 rounded-full bg-[#c21f1f]/78 shadow-[0_0_0_6px_rgba(255,255,255,0.06)]" />
-            <div className="absolute right-[18%] top-[22%] h-4 w-4 rounded-full bg-[#dfb247]/76 shadow-[0_0_0_6px_rgba(255,255,255,0.05)]" />
-            <div className="absolute left-[22%] bottom-[18%] h-4 w-4 rounded-full bg-[#2f77c7]/72 shadow-[0_0_0_6px_rgba(255,255,255,0.05)]" />
-            <div className="absolute right-[14%] bottom-[14%] h-5 w-5 rounded-full bg-[#2a9d62]/72 shadow-[0_0_0_6px_rgba(255,255,255,0.05)]" />
-          </div>
-        ),
-        content: (
-          <div className="grid min-h-0 gap-5 xl:grid-cols-[280px_minmax(0,1fr)]">
-            <aside className="rounded-[2.2rem] border border-white/10 bg-[linear-gradient(180deg,rgba(34,13,10,0.82),rgba(51,20,15,0.72))] px-5 py-6 shadow-[inset_0_1px_0_rgba(255,255,255,0.04)] sm:px-7 sm:py-8">
-              <p className="font-mono text-xs uppercase tracking-[0.34em] text-[#f3d19d]/62">
-                Station Board
-              </p>
-              <p className="mt-4 text-[2rem] font-semibold tracking-[-0.05em] text-[#fff7ea] sm:text-[2.7rem]">
-                {companyBrand(unit).name}
-              </p>
-              <p className="mt-2 text-base text-[#f6e2c0]/68 sm:text-lg">
-                {unit.station}
-              </p>
-              <div className="mt-8 grid gap-4">
-                <div className="rounded-[1.6rem] border border-[#f3d19d]/12 bg-black/14 px-4 py-4">
-                  <p className="font-mono text-xs uppercase tracking-[0.24em] text-[#f3d19d]/56">
-                    Active Notes
-                  </p>
-                  <p className="mt-3 text-[2.5rem] font-semibold tracking-[-0.06em] text-white">
-                    {totalDashboardNotes}
-                  </p>
+        ? [
+            {
+              id: "dashboard-notes",
+              label: "Notes",
+              eyebrow: "Company Notes",
+              title: `${companyBrand(unit).name} Notes Board`,
+              description:
+                dashboardNotesMessage ??
+                `${totalDashboardNotes} active dashboard note${totalDashboardNotes === 1 ? "" : "s"} for ${unit.station}.`,
+              contentVersion: `dashboard-notes:${unit.station}:${stationNotes.map((note) => note.id).join("|")}:${officerNotes.map((note) => note.id).join("|")}:${dashboardNotesMessage ?? ""}`,
+              scrollable: true,
+              backgroundStyle: {
+                background:
+                  "radial-gradient(circle at 14% 18%, rgba(255,227,168,0.12), transparent 18%), radial-gradient(circle at 82% 16%, rgba(255,153,115,0.12), transparent 22%), linear-gradient(145deg, rgba(49,19,15,0.99), rgba(89,34,24,0.98) 48%, rgba(33,13,10,0.99))",
+              },
+              artwork: (
+                <div className="pointer-events-none absolute inset-0 overflow-hidden">
+                  <div className="absolute inset-[7%] rounded-[2.6rem] border border-[#f4d5a4]/14 bg-[linear-gradient(135deg,rgba(145,82,44,0.16),rgba(92,49,28,0.22))]" />
+                  <div className="absolute inset-[8.5%] rounded-[2.2rem] border border-white/6" />
+                  <div className="absolute left-[14%] top-[12%] h-5 w-5 rounded-full bg-[#c21f1f]/78 shadow-[0_0_0_6px_rgba(255,255,255,0.06)]" />
+                  <div className="absolute right-[18%] top-[22%] h-4 w-4 rounded-full bg-[#dfb247]/76 shadow-[0_0_0_6px_rgba(255,255,255,0.05)]" />
+                  <div className="absolute left-[22%] bottom-[18%] h-4 w-4 rounded-full bg-[#2f77c7]/72 shadow-[0_0_0_6px_rgba(255,255,255,0.05)]" />
+                  <div className="absolute right-[14%] bottom-[14%] h-5 w-5 rounded-full bg-[#2a9d62]/72 shadow-[0_0_0_6px_rgba(255,255,255,0.05)]" />
                 </div>
-                <div className="rounded-[1.6rem] border border-[#f3d19d]/12 bg-black/14 px-4 py-4">
-                  <p className="font-mono text-xs uppercase tracking-[0.24em] text-[#f3d19d]/56">
-                    Station
-                  </p>
-                  <p className="mt-3 text-[1.6rem] font-medium text-white">
-                    {stationNotes.length} note{stationNotes.length === 1 ? "" : "s"}
-                  </p>
-                </div>
-                <div className="rounded-[1.6rem] border border-[#f3d19d]/12 bg-black/14 px-4 py-4">
-                  <p className="font-mono text-xs uppercase tracking-[0.24em] text-[#f3d19d]/56">
-                    Officer
-                  </p>
-                  <p className="mt-3 text-[1.6rem] font-medium text-white">
-                    {officerNotes.length} note{officerNotes.length === 1 ? "" : "s"}
-                  </p>
-                </div>
-              </div>
-              <p className="mt-8 text-sm leading-7 text-[#f6e2c0]/58 sm:text-base sm:leading-8">
-                {dashboardNotesMessage ??
-                  "Published from the members site and filtered for this company before display."}
-              </p>
-            </aside>
-            <div className="min-h-0 rounded-[2.3rem] border border-[#f1d3a2]/12 bg-[linear-gradient(180deg,rgba(134,81,47,0.32),rgba(99,58,34,0.22))] p-3 shadow-[inset_0_1px_0_rgba(255,255,255,0.05)] sm:p-5">
-              <div className="grid gap-5 xl:grid-cols-2">
-                {[
-                  {
-                    key: "station",
-                    title: "Station Notes",
-                    notes: stationNotes,
-                    paper: "bg-[#f4e7c9] text-[#3d2a1e]",
-                    pin: "bg-[#bb2d1d]",
-                    accent: "text-[#8e5e36]",
-                    tilt: "-rotate-[1.2deg]",
-                    subtitle: "House memos, coverage reminders, and station-level updates.",
-                    badge: "Station Memo",
-                    pinnedBadge: "Pinned Station Memo",
-                    rule: "bg-[#8e5e36]/20",
-                    noteShadow: "shadow-[0_18px_30px_rgba(0,0,0,0.24)]",
-                    pinnedRing: "ring-[#c56a2d]/30",
-                  },
-                  {
-                    key: "officer",
-                    title: "Officer Notes",
-                    notes: officerNotes,
-                    paper: "bg-[#edf3f8] text-[#203247]",
-                    pin: "bg-[#2d6bb4]",
-                    accent: "text-[#486684]",
-                    tilt: "rotate-[1deg]",
-                    subtitle: "Command direction, operational notices, and officer messaging.",
-                    badge: "Officer Order",
-                    pinnedBadge: "Priority Officer Order",
-                    rule: "bg-[#486684]/18",
-                    noteShadow: "shadow-[0_18px_30px_rgba(8,31,52,0.2)]",
-                    pinnedRing: "ring-[#4d83b7]/34",
-                  },
-                ].map((section) => (
-                  <section key={section.key} className="min-h-0">
-                    <div className="mb-4 flex items-center justify-between px-2">
-                      <div>
-                        <p className="font-mono text-sm uppercase tracking-[0.28em] text-[#f5ddba]/68">
-                          {section.title}
+              ),
+              content: (
+                <div className="grid min-h-0 gap-5 xl:grid-cols-[280px_minmax(0,1fr)]">
+                  <aside className="rounded-[2.2rem] border border-white/10 bg-[linear-gradient(180deg,rgba(34,13,10,0.82),rgba(51,20,15,0.72))] px-5 py-6 shadow-[inset_0_1px_0_rgba(255,255,255,0.04)] sm:px-7 sm:py-8">
+                    <p className="font-mono text-xs uppercase tracking-[0.34em] text-[#f3d19d]/62">
+                      Station Board
+                    </p>
+                    <p className="mt-4 text-[2rem] font-semibold tracking-[-0.05em] text-[#fff7ea] sm:text-[2.7rem]">
+                      {companyBrand(unit).name}
+                    </p>
+                    <p className="mt-2 text-base text-[#f6e2c0]/68 sm:text-lg">
+                      {unit.station}
+                    </p>
+                    <div className="mt-8 grid gap-4">
+                      <div className="rounded-[1.6rem] border border-[#f3d19d]/12 bg-black/14 px-4 py-4">
+                        <p className="font-mono text-xs uppercase tracking-[0.24em] text-[#f3d19d]/56">
+                          Active Notes
                         </p>
-                        <p className="mt-1 text-sm text-[#f5ddba]/50">
-                          {section.subtitle}
+                        <p className="mt-3 text-[2.5rem] font-semibold tracking-[-0.06em] text-white">
+                          {totalDashboardNotes}
                         </p>
                       </div>
-                      <p className="rounded-full border border-white/10 bg-black/14 px-3 py-1 text-sm text-[#f5ddba]/56">
-                        {section.notes.length} active
-                      </p>
+                      <div className="rounded-[1.6rem] border border-[#f3d19d]/12 bg-black/14 px-4 py-4">
+                        <p className="font-mono text-xs uppercase tracking-[0.24em] text-[#f3d19d]/56">
+                          Station
+                        </p>
+                        <p className="mt-3 text-[1.6rem] font-medium text-white">
+                          {stationNotes.length} note
+                          {stationNotes.length === 1 ? "" : "s"}
+                        </p>
+                      </div>
+                      <div className="rounded-[1.6rem] border border-[#f3d19d]/12 bg-black/14 px-4 py-4">
+                        <p className="font-mono text-xs uppercase tracking-[0.24em] text-[#f3d19d]/56">
+                          Officer
+                        </p>
+                        <p className="mt-3 text-[1.6rem] font-medium text-white">
+                          {officerNotes.length} note
+                          {officerNotes.length === 1 ? "" : "s"}
+                        </p>
+                      </div>
                     </div>
-                    <div className="grid gap-5">
-                      {section.notes.map((note, index) => (
-                        <article
-                          key={note.id}
-                          className={`${section.paper} ${
-                            index % 2 === 0 ? section.tilt : "rotate-[0.5deg]"
-                          } ${section.noteShadow} ${
-                            note.isPinned ? `ring-2 ${section.pinnedRing}` : "ring-1 ring-black/6"
-                          } relative rounded-[0.8rem] px-5 pb-5 pt-6 sm:px-6 sm:pb-6 sm:pt-7`}
-                        >
-                          <div className={`absolute left-1/2 top-0 h-4 w-4 -translate-x-1/2 -translate-y-1/2 rounded-full ${section.pin} shadow-[0_2px_8px_rgba(0,0,0,0.28)]`} />
-                          <div className="flex items-start justify-between gap-4">
+                    <p className="mt-8 text-sm leading-7 text-[#f6e2c0]/58 sm:text-base sm:leading-8">
+                      {dashboardNotesMessage ??
+                        "Published from the members site and filtered for this company before display."}
+                    </p>
+                  </aside>
+                  <div className="min-h-0 rounded-[2.3rem] border border-[#f1d3a2]/12 bg-[linear-gradient(180deg,rgba(134,81,47,0.32),rgba(99,58,34,0.22))] p-3 shadow-[inset_0_1px_0_rgba(255,255,255,0.05)] sm:p-5">
+                    <div className="grid gap-5 xl:grid-cols-2">
+                      {[
+                        {
+                          key: "station",
+                          title: "Station Notes",
+                          notes: stationNotes,
+                          paper: "bg-[#f4e7c9] text-[#3d2a1e]",
+                          pin: "bg-[#bb2d1d]",
+                          accent: "text-[#8e5e36]",
+                          tilt: "-rotate-[1.2deg]",
+                          subtitle:
+                            "House memos, coverage reminders, and station-level updates.",
+                          badge: "Station Memo",
+                          pinnedBadge: "Pinned Station Memo",
+                          rule: "bg-[#8e5e36]/20",
+                          noteShadow: "shadow-[0_18px_30px_rgba(0,0,0,0.24)]",
+                          pinnedRing: "ring-[#c56a2d]/30",
+                        },
+                        {
+                          key: "officer",
+                          title: "Officer Notes",
+                          notes: officerNotes,
+                          paper: "bg-[#edf3f8] text-[#203247]",
+                          pin: "bg-[#2d6bb4]",
+                          accent: "text-[#486684]",
+                          tilt: "rotate-[1deg]",
+                          subtitle:
+                            "Command direction, operational notices, and officer messaging.",
+                          badge: "Officer Order",
+                          pinnedBadge: "Priority Officer Order",
+                          rule: "bg-[#486684]/18",
+                          noteShadow: "shadow-[0_18px_30px_rgba(8,31,52,0.2)]",
+                          pinnedRing: "ring-[#4d83b7]/34",
+                        },
+                      ].map((section) => (
+                        <section key={section.key} className="min-h-0">
+                          <div className="mb-4 flex items-center justify-between px-2">
                             <div>
-                              <p className="text-[1.35rem] font-semibold leading-tight sm:text-[1.75rem]">
-                                {note.title}
+                              <p className="font-mono text-sm uppercase tracking-[0.28em] text-[#f5ddba]/68">
+                                {section.title}
                               </p>
-                              <div className="mt-3 flex flex-wrap items-center gap-2">
-                                <span
-                                  className={`rounded-full border border-black/10 px-3 py-1 font-mono text-[10px] uppercase tracking-[0.22em] ${section.accent} ${
-                                    note.isPinned ? "bg-black/10 font-semibold" : "bg-black/5"
-                                  }`}
-                                >
-                                  {note.isPinned ? section.pinnedBadge : section.badge}
-                                </span>
-                                {note.stationTag ? (
-                                  <span className={`font-mono text-[10px] uppercase tracking-[0.22em] ${section.accent}`}>
-                                    {note.stationTag}
-                                  </span>
-                                ) : null}
-                              </div>
+                              <p className="mt-1 text-sm text-[#f5ddba]/50">
+                                {section.subtitle}
+                              </p>
                             </div>
-                            {formatDashboardTimestamp(note.updatedAt) ? (
-                              <p className={`max-w-[9rem] text-right text-xs leading-5 ${section.accent}`}>
-                                {formatDashboardTimestamp(note.updatedAt)}
-                              </p>
-                            ) : null}
+                            <p className="rounded-full border border-white/10 bg-black/14 px-3 py-1 text-sm text-[#f5ddba]/56">
+                              {section.notes.length} active
+                            </p>
                           </div>
-                          <div className={`mt-4 h-px ${section.rule}`} />
-                          <p className="mt-4 whitespace-pre-wrap text-[1.08rem] leading-8 sm:text-[1.22rem] sm:leading-9">
-                            {note.body}
-                          </p>
-                        </article>
+                          <div className="grid gap-5">
+                            {section.notes.map((note, index) => (
+                              <article
+                                key={note.id}
+                                className={`${section.paper} ${
+                                  index % 2 === 0
+                                    ? section.tilt
+                                    : "rotate-[0.5deg]"
+                                } ${section.noteShadow} ${
+                                  note.isPinned
+                                    ? `ring-2 ${section.pinnedRing}`
+                                    : "ring-1 ring-black/6"
+                                } relative rounded-[0.8rem] px-5 pb-5 pt-6 sm:px-6 sm:pb-6 sm:pt-7`}
+                              >
+                                <div
+                                  className={`absolute left-1/2 top-0 h-4 w-4 -translate-x-1/2 -translate-y-1/2 rounded-full ${section.pin} shadow-[0_2px_8px_rgba(0,0,0,0.28)]`}
+                                />
+                                <div className="flex items-start justify-between gap-4">
+                                  <div>
+                                    <p className="text-[1.35rem] font-semibold leading-tight sm:text-[1.75rem]">
+                                      {note.title}
+                                    </p>
+                                    <div className="mt-3 flex flex-wrap items-center gap-2">
+                                      <span
+                                        className={`rounded-full border border-black/10 px-3 py-1 font-mono text-[10px] uppercase tracking-[0.22em] ${section.accent} ${
+                                          note.isPinned
+                                            ? "bg-black/10 font-semibold"
+                                            : "bg-black/5"
+                                        }`}
+                                      >
+                                        {note.isPinned
+                                          ? section.pinnedBadge
+                                          : section.badge}
+                                      </span>
+                                      {note.stationTag ? (
+                                        <span
+                                          className={`font-mono text-[10px] uppercase tracking-[0.22em] ${section.accent}`}
+                                        >
+                                          {note.stationTag}
+                                        </span>
+                                      ) : null}
+                                    </div>
+                                  </div>
+                                  {formatDashboardTimestamp(note.updatedAt) ? (
+                                    <p
+                                      className={`max-w-[9rem] text-right text-xs leading-5 ${section.accent}`}
+                                    >
+                                      {formatDashboardTimestamp(note.updatedAt)}
+                                    </p>
+                                  ) : null}
+                                </div>
+                                <div className={`mt-4 h-px ${section.rule}`} />
+                                <p className="mt-4 whitespace-pre-wrap text-[1.08rem] leading-8 sm:text-[1.22rem] sm:leading-9">
+                                  {note.body}
+                                </p>
+                              </article>
+                            ))}
+                          </div>
+                        </section>
                       ))}
                     </div>
-                  </section>
-                ))}
-              </div>
-            </div>
-          </div>
-        ),
-      }]
+                  </div>
+                </div>
+              ),
+            },
+          ]
         : [];
 
     return [
@@ -1855,16 +1912,17 @@ const pollIntervalId = window.setInterval(() => {
       {
         id: "weather",
         label: "Weather",
-        eyebrow: flashingWeatherAlert ? "Active Weather Alert" : "Weather Brief",
+        eyebrow: flashingWeatherAlert
+          ? "Active Weather Alert"
+          : "Weather Brief",
         title: "Current Weather",
         description: unit.weatherUpdatedAt
           ? `Last updated ${formatTime(unit.weatherUpdatedAt)}`
           : "Awaiting live weather update.",
         backgroundStyle: {
-          background:
-            flashingWeatherAlert
-              ? "radial-gradient(circle at 18% 20%, rgba(255,255,255,0.22), transparent 16%), radial-gradient(circle at 80% 18%, rgba(255,145,145,0.3), transparent 18%), radial-gradient(circle at 70% 78%, rgba(255,110,110,0.22), transparent 24%), linear-gradient(145deg, rgba(136,30,36,0.98), rgba(178,38,44,0.94) 55%, rgba(90,18,24,0.96))"
-              : "radial-gradient(circle at 18% 20%, rgba(255,255,255,0.24), transparent 16%), radial-gradient(circle at 80% 18%, rgba(184,228,255,0.3), transparent 18%), radial-gradient(circle at 70% 78%, rgba(108,205,255,0.24), transparent 24%), linear-gradient(145deg, rgba(27,98,132,0.98), rgba(42,144,166,0.94) 55%, rgba(17,70,98,0.96))",
+          background: flashingWeatherAlert
+            ? "radial-gradient(circle at 18% 20%, rgba(255,255,255,0.22), transparent 16%), radial-gradient(circle at 80% 18%, rgba(255,145,145,0.3), transparent 18%), radial-gradient(circle at 70% 78%, rgba(255,110,110,0.22), transparent 24%), linear-gradient(145deg, rgba(136,30,36,0.98), rgba(178,38,44,0.94) 55%, rgba(90,18,24,0.96))"
+            : "radial-gradient(circle at 18% 20%, rgba(255,255,255,0.24), transparent 16%), radial-gradient(circle at 80% 18%, rgba(184,228,255,0.3), transparent 18%), radial-gradient(circle at 70% 78%, rgba(108,205,255,0.24), transparent 24%), linear-gradient(145deg, rgba(27,98,132,0.98), rgba(42,144,166,0.94) 55%, rgba(17,70,98,0.96))",
         },
         artwork: (
           <div className="pointer-events-none absolute inset-0 overflow-hidden">
@@ -1920,7 +1978,8 @@ const pollIntervalId = window.setInterval(() => {
                         : "Awaiting live weather"}
                     </p>
                     <p className="mt-3 text-base text-white/64">
-                      {unit.weatherSourceLabel ?? "Weather source not configured"}
+                      {unit.weatherSourceLabel ??
+                        "Weather source not configured"}
                     </p>
                   </div>
                 </div>
@@ -1952,9 +2011,12 @@ const pollIntervalId = window.setInterval(() => {
               <ul className="mt-5 grid gap-3 text-[1.15rem] leading-tight text-white/88 sm:text-[1.55rem] 2xl:text-[1.8rem]">
                 {(unit.weatherDetails.length > 0
                   ? unit.weatherDetails
-                  : ["No weather details configured"]).slice(0, 4).map((detail) => (
-                  <li key={detail}>{detail}</li>
-                ))}
+                  : ["No weather details configured"]
+                )
+                  .slice(0, 4)
+                  .map((detail) => (
+                    <li key={detail}>{detail}</li>
+                  ))}
               </ul>
             </div>
             <div className="min-h-0 self-start rounded-[2rem] border border-white/16 bg-white/10 px-5 py-5 sm:px-7 sm:py-7">
@@ -1962,12 +2024,16 @@ const pollIntervalId = window.setInterval(() => {
                 <p className="font-mono text-sm uppercase tracking-[0.28em] text-white/56">
                   Radar
                 </p>
-                <p className="text-sm text-white/60">Centered on Morris Township</p>
+                <p className="text-sm text-white/60">
+                  Centered on Morris Township
+                </p>
               </div>
               <div className="mt-5 overflow-hidden rounded-[1.7rem] border border-white/16 bg-white/10">
                 {activeWeatherRadarImageUrl ? (
                   <a
-                    href={unit.weatherRadarPageUrl ?? activeWeatherRadarImageUrl}
+                    href={
+                      unit.weatherRadarPageUrl ?? activeWeatherRadarImageUrl
+                    }
                     target="_blank"
                     rel="noreferrer"
                     className="block"
@@ -2001,7 +2067,7 @@ const pollIntervalId = window.setInterval(() => {
         label: "Schedule",
         eyebrow: "Current Schedule",
         title: scheduleDate
-          ? `Daily Staffing for ${formatDateOnly(`${scheduleDate}T12:00:00`)}` 
+          ? `Daily Staffing for ${formatDateOnly(`${scheduleDate}T12:00:00`)}`
           : "Daily Staffing Schedule",
         description:
           scheduleMessage ??
@@ -2033,7 +2099,9 @@ const pollIntervalId = window.setInterval(() => {
                   {entry.timeRange}
                 </p>
                 <div>
-                  <p className="text-[1.8rem] font-medium leading-tight text-white sm:text-[2.9rem]">{entry.title}</p>
+                  <p className="text-[1.8rem] font-medium leading-tight text-white sm:text-[2.9rem]">
+                    {entry.title}
+                  </p>
                   <p className="mt-2 text-[1.15rem] text-white/80 sm:text-[1.85rem]">
                     {entry.station ? `${entry.station} / ` : ""}
                     {entry.staffing.length > 0
@@ -2078,7 +2146,9 @@ const pollIntervalId = window.setInterval(() => {
                 <p className="mt-4 text-[3rem] font-semibold tracking-[-0.06em] text-white sm:text-[5.1rem]">
                   {statsUnavailable ? "Unavailable" : totalDepartmentCalls}
                 </p>
-                <p className="mt-4 text-base text-white/68 sm:text-xl">Year to date</p>
+                <p className="mt-4 text-base text-white/68 sm:text-xl">
+                  Year to date
+                </p>
               </div>
               <div className="self-start rounded-[2rem] border border-white/12 bg-white/7 px-5 py-5 sm:px-8 sm:py-7">
                 <p className="font-mono text-sm uppercase tracking-[0.28em] text-white/56">
@@ -2087,7 +2157,9 @@ const pollIntervalId = window.setInterval(() => {
                 <p className="mt-4 text-[3rem] font-semibold tracking-[-0.06em] text-white sm:text-[5.1rem]">
                   {statsUnavailable ? "Unavailable" : totalApparatusCalls}
                 </p>
-                <p className="mt-4 text-base text-white/68 sm:text-xl">{unit.displayName} year to date</p>
+                <p className="mt-4 text-base text-white/68 sm:text-xl">
+                  {unit.displayName} year to date
+                </p>
               </div>
               <div className="self-start rounded-[2rem] border border-red-300/16 bg-red-300/8 px-5 py-5 sm:px-8 sm:py-7">
                 <p className="font-mono text-sm uppercase tracking-[0.28em] text-red-50/72">
@@ -2096,7 +2168,9 @@ const pollIntervalId = window.setInterval(() => {
                 <p className="mt-4 text-[3rem] font-semibold tracking-[-0.06em] text-white sm:text-[5.1rem]">
                   {statsUnavailable ? "Unavailable" : fireRescueCalls}
                 </p>
-                <p className="mt-4 text-base text-white/68 sm:text-xl">Department fire/rescue incidents</p>
+                <p className="mt-4 text-base text-white/68 sm:text-xl">
+                  Department fire/rescue incidents
+                </p>
               </div>
               <div className="self-start rounded-[2rem] border border-sky-300/16 bg-sky-300/8 px-5 py-5 sm:px-8 sm:py-7">
                 <p className="font-mono text-sm uppercase tracking-[0.28em] text-sky-50/72">
@@ -2105,7 +2179,9 @@ const pollIntervalId = window.setInterval(() => {
                 <p className="mt-4 text-[3rem] font-semibold tracking-[-0.06em] text-white sm:text-[5.1rem]">
                   {statsUnavailable ? "Unavailable" : emsCalls}
                 </p>
-                <p className="mt-4 text-base text-white/68 sm:text-xl">Department EMS incidents</p>
+                <p className="mt-4 text-base text-white/68 sm:text-xl">
+                  Department EMS incidents
+                </p>
               </div>
             </div>
             <div className="self-start rounded-[2rem] border border-white/16 bg-white/10 px-5 py-5 sm:px-8 sm:py-8">
@@ -2131,8 +2207,8 @@ const pollIntervalId = window.setInterval(() => {
                     {statsUnavailable
                       ? "Live totals unavailable"
                       : totalDepartmentCalls > 0
-                      ? `${Math.round((totalApparatusCalls / totalDepartmentCalls) * 100)}% of department calls`
-                      : "No department calls counted yet"}
+                        ? `${Math.round((totalApparatusCalls / totalDepartmentCalls) * 100)}% of department calls`
+                        : "No department calls counted yet"}
                   </p>
                 </div>
                 <div className="rounded-[1.5rem] border border-white/10 bg-white/6 px-5 py-5">
@@ -2151,11 +2227,13 @@ const pollIntervalId = window.setInterval(() => {
                               {window.label}
                             </p>
                             <p className="mt-1 text-sm text-white/62">
-                              {window.totalDepartmentCalls} dept. / {window.totalApparatusCalls} {responseLabelPlural}
+                              {window.totalDepartmentCalls} dept. /{" "}
+                              {window.totalApparatusCalls} {responseLabelPlural}
                             </p>
                           </div>
                           <p className="font-mono text-xs uppercase tracking-[0.18em] text-white/48">
-                            {window.fireRescueCalls} Fire · {window.emsCalls} EMS
+                            {window.fireRescueCalls} Fire · {window.emsCalls}{" "}
+                            EMS
                           </p>
                         </div>
                       </div>
@@ -2185,8 +2263,8 @@ const pollIntervalId = window.setInterval(() => {
         title: "Dispatch feed diagnostics",
         description:
           dispatchHealthMessage ??
-          (dispatchHealth?.telemetry.lastError ??
-            "Current poller, persistence, and shared-store status."),
+          dispatchHealth?.telemetry.lastError ??
+          "Current poller, persistence, and shared-store status.",
         contentVersion: `health:${dispatchHealth?.revision ?? 0}:${dispatchHealth?.snapshotFetchedAt ?? ""}:${dispatchHealth?.telemetry.lastFetchDurationMs ?? "na"}:${dispatchHealth?.telemetry.lastPersistDurationMs ?? "na"}:${dispatchHealthMessage ?? ""}`,
         backgroundStyle: {
           background:
@@ -2209,7 +2287,9 @@ const pollIntervalId = window.setInterval(() => {
                   Last Success
                 </p>
                 <p className="mt-4 text-3xl font-semibold leading-tight text-white">
-                  {formatTime(dispatchHealth?.telemetry.lastSuccessfulFetchAt ?? null)}
+                  {formatTime(
+                    dispatchHealth?.telemetry.lastSuccessfulFetchAt ?? null,
+                  )}
                 </p>
                 <p className="mt-4 text-base text-white/68 sm:text-xl">
                   Latest healthy upstream refresh
@@ -2223,7 +2303,8 @@ const pollIntervalId = window.setInterval(() => {
                   {dispatchHealth?.revision ?? 0}
                 </p>
                 <p className="mt-4 text-base text-white/68 sm:text-xl">
-                  Upstream {dispatchHealth?.snapshotUpstreamStatus ?? "Unavailable"}
+                  Upstream{" "}
+                  {dispatchHealth?.snapshotUpstreamStatus ?? "Unavailable"}
                 </p>
               </div>
               <div className="rounded-[2rem] border border-sky-300/16 bg-sky-300/8 px-5 py-5 sm:px-8 sm:py-7">
@@ -2231,7 +2312,9 @@ const pollIntervalId = window.setInterval(() => {
                   Fetch Latency
                 </p>
                 <p className="mt-4 text-[3rem] font-semibold tracking-[-0.06em] text-white sm:text-[5.1rem]">
-                  {formatDurationMs(dispatchHealth?.telemetry.lastFetchDurationMs ?? null)}
+                  {formatDurationMs(
+                    dispatchHealth?.telemetry.lastFetchDurationMs ?? null,
+                  )}
                 </p>
                 <p className="mt-4 text-base text-white/68 sm:text-xl">
                   Last FirstDue request duration
@@ -2242,7 +2325,9 @@ const pollIntervalId = window.setInterval(() => {
                   Persist Duration
                 </p>
                 <p className="mt-4 text-[3rem] font-semibold tracking-[-0.06em] text-white sm:text-[5.1rem]">
-                  {formatDurationMs(dispatchHealth?.telemetry.lastPersistDurationMs ?? null)}
+                  {formatDurationMs(
+                    dispatchHealth?.telemetry.lastPersistDurationMs ?? null,
+                  )}
                 </p>
                 <p className="mt-4 text-base text-white/68 sm:text-xl">
                   Snapshot + event write time
@@ -2259,10 +2344,17 @@ const pollIntervalId = window.setInterval(() => {
                     Shared Store
                   </p>
                   <p className="mt-3 text-[1.4rem] font-medium leading-tight text-white sm:text-[1.9rem]">
-                    {dispatchHealth?.redis.configured ? "Redis enabled" : "Process-local fallback"}
+                    {dispatchHealth?.redis.configured
+                      ? "Redis enabled"
+                      : "Process-local fallback"}
                   </p>
                   <p className="mt-2 text-base text-white/66">
-                    Subscriber {dispatchHealth?.redis.subscriberStatus ?? "disabled"} / feed {dispatchHealth?.redis.subscribed ? "subscribed" : "not subscribed"}
+                    Subscriber{" "}
+                    {dispatchHealth?.redis.subscriberStatus ?? "disabled"} /
+                    feed{" "}
+                    {dispatchHealth?.redis.subscribed
+                      ? "subscribed"
+                      : "not subscribed"}
                   </p>
                 </div>
                 <div className="rounded-[1.5rem] border border-white/10 bg-white/6 px-5 py-5">
@@ -2270,7 +2362,9 @@ const pollIntervalId = window.setInterval(() => {
                     Persistence
                   </p>
                   <p className="mt-3 text-[1.4rem] font-medium leading-tight text-white sm:text-[1.9rem]">
-                    {dispatchHealth?.database.configured ? "Postgres enabled" : "Database disabled"}
+                    {dispatchHealth?.database.configured
+                      ? "Postgres enabled"
+                      : "Database disabled"}
                   </p>
                   <p className="mt-2 text-base text-white/66">
                     Retention {dispatchHealth?.retentionDays ?? 0} days
@@ -2281,7 +2375,16 @@ const pollIntervalId = window.setInterval(() => {
                     FirstDue Config
                   </p>
                   <p className="mt-3 text-base leading-7 text-white/78 sm:text-xl sm:leading-8">
-                    URL {dispatchHealth?.firstDue?.apiUrl.valid ? "ready" : "invalid"} / auth {dispatchHealth?.firstDue?.auth.headerValuePresent ? "present" : "missing"} / timeout {dispatchHealth?.firstDue?.timeout.parsedMs ?? "n/a"} ms
+                    URL{" "}
+                    {dispatchHealth?.firstDue?.apiUrl.valid
+                      ? "ready"
+                      : "invalid"}{" "}
+                    / auth{" "}
+                    {dispatchHealth?.firstDue?.auth.headerValuePresent
+                      ? "present"
+                      : "missing"}{" "}
+                    / timeout{" "}
+                    {dispatchHealth?.firstDue?.timeout.parsedMs ?? "n/a"} ms
                   </p>
                 </div>
                 <div className="rounded-[1.5rem] border border-white/10 bg-white/6 px-5 py-5">
@@ -2347,10 +2450,9 @@ const pollIntervalId = window.setInterval(() => {
       return;
     }
 
-    const scrollContainer =
-      currentIdleScreen.id.startsWith("work-orders:")
-        ? workOrdersListRef.current ?? container
-        : container;
+    const scrollContainer = currentIdleScreen.id.startsWith("work-orders:")
+      ? (workOrdersListRef.current ?? container)
+      : container;
 
     scrollContainer.scrollTo({ top: 0, behavior: "auto" });
 
@@ -2569,7 +2671,10 @@ const pollIntervalId = window.setInterval(() => {
               right unit information when there is no active dispatch.
             </p>
           </div>
-          <form onSubmit={handleLogin} className="grid gap-6 px-6 py-7 sm:px-8 sm:py-8">
+          <form
+            onSubmit={handleLogin}
+            className="grid gap-6 px-6 py-7 sm:px-8 sm:py-8"
+          >
             <label className="grid gap-2">
               <span className="font-mono text-sm uppercase tracking-[0.24em] text-black/52">
                 Unit Login
@@ -2648,7 +2753,9 @@ const pollIntervalId = window.setInterval(() => {
                 <p className="mt-3 font-mono text-xs uppercase tracking-[0.28em] text-white/44">
                   {unitScopeLabel}
                 </p>
-                <p className="mt-2 text-[1.5rem] font-medium text-white sm:text-[1.8rem] xl:text-[2.2rem]">{unit.displayName}</p>
+                <p className="mt-2 text-[1.5rem] font-medium text-white sm:text-[1.8rem] xl:text-[2.2rem]">
+                  {unit.displayName}
+                </p>
                 <p className="mt-1 text-base text-white/64 sm:text-lg">
                   {unitMembershipSummary}
                 </p>
@@ -2680,7 +2787,8 @@ const pollIntervalId = window.setInterval(() => {
                     Incident Timeline
                   </p>
                   <p className="text-sm text-white/62">
-                    {timelineEvents.length} event{timelineEvents.length === 1 ? "" : "s"} captured
+                    {timelineEvents.length} event
+                    {timelineEvents.length === 1 ? "" : "s"} captured
                   </p>
                 </div>
                 {timelineMessage ? (
@@ -2705,7 +2813,9 @@ const pollIntervalId = window.setInterval(() => {
                             <div className="flex flex-wrap items-start justify-between gap-3">
                               <div className="flex items-start gap-3">
                                 <div className="mt-1 flex flex-col items-center">
-                                  <span className={`h-3 w-3 rounded-full ${tone.dot}`} />
+                                  <span
+                                    className={`h-3 w-3 rounded-full ${tone.dot}`}
+                                  />
                                   <span className="mt-2 h-10 w-px bg-white/12" />
                                 </div>
                                 <div>
@@ -2728,11 +2838,18 @@ const pollIntervalId = window.setInterval(() => {
                                 </div>
                               </div>
                               <p className="font-mono text-xs uppercase tracking-[0.18em] text-white/54">
-                                {(event.status ?? event.dispatch.status ?? "unknown").toUpperCase()}
+                                {(
+                                  event.status ??
+                                  event.dispatch.status ??
+                                  "unknown"
+                                ).toUpperCase()}
                               </p>
                             </div>
                             <p className="mt-3 text-base leading-7 text-white/84 sm:text-lg sm:leading-8">
-                              {timelineEventSummary(event.dispatch.message, event.eventType)}
+                              {timelineEventSummary(
+                                event.dispatch.message,
+                                event.eventType,
+                              )}
                             </p>
                           </li>
                         );
@@ -2745,6 +2862,24 @@ const pollIntervalId = window.setInterval(() => {
                   </ul>
                 </div>
               </div>
+
+              {primaryDispatch.message ? (
+                <div className="rounded-[1.7rem] border border-white/18 bg-white/10 px-5 py-5 xl:col-span-2">
+                  <div className="flex flex-wrap items-center justify-between gap-3">
+                    <p className="font-mono text-sm uppercase tracking-[0.3em] text-white/62">
+                      Live CAD Notes
+                    </p>
+
+                    <p className="text-sm text-white/62">
+                      From active dispatch feed
+                    </p>
+                  </div>
+
+                  <pre className="mt-4 max-h-[16rem] whitespace-pre-wrap overflow-y-auto rounded-[1.1rem] border border-white/14 bg-black/14 px-4 py-3 font-mono text-sm leading-6 text-white/84">
+                    {primaryDispatch.message}
+                  </pre>
+                </div>
+              ) : null}
 
               <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-2">
                 <div className="rounded-[1.4rem] border border-white/18 bg-white/10 p-4">
@@ -2844,7 +2979,9 @@ const pollIntervalId = window.setInterval(() => {
                       <div className="mt-2 flex flex-wrap gap-x-3 gap-y-1 font-mono text-[11px] uppercase tracking-[0.18em] text-white/58">
                         <span>{dispatch.incidentNumber ?? dispatch.id}</span>
                         <span>{formatShortTime(dispatch.dispatchedAt)}</span>
-                        <span>{dispatchDisplayStatus(dispatch, now).toUpperCase()}</span>
+                        <span>
+                          {dispatchDisplayStatus(dispatch, now).toUpperCase()}
+                        </span>
                       </div>
                     </li>
                   ))}
@@ -2901,7 +3038,9 @@ const pollIntervalId = window.setInterval(() => {
                 <p className="mt-3 font-mono text-xs uppercase tracking-[0.28em] text-white/44">
                   {unitScopeLabel}
                 </p>
-                <p className="mt-2 text-[1.9rem] font-medium text-white">{unit.displayName}</p>
+                <p className="mt-2 text-[1.9rem] font-medium text-white">
+                  {unit.displayName}
+                </p>
                 <p className="mt-1 text-base text-white/64">
                   {unitMembershipSummary}
                 </p>
@@ -2946,13 +3085,15 @@ const pollIntervalId = window.setInterval(() => {
                 <p className="mt-3 text-center font-mono text-xs uppercase tracking-[0.28em] text-white/40 sm:text-right">
                   Screen
                 </p>
-                <p className="mt-2 text-center text-base text-white/72 sm:text-right sm:text-lg">{currentIdleScreen.label}</p>
+                <p className="mt-2 text-center text-base text-white/72 sm:text-right sm:text-lg">
+                  {currentIdleScreen.label}
+                </p>
               </div>
             </div>
           </div>
         </div>
       </section>
-      {(stickyMessage || (Boolean(unitId) && !configured)) ? (
+      {stickyMessage || (Boolean(unitId) && !configured) ? (
         <div className="safe-area-bottom-banner absolute left-1/2 z-10 w-[min(920px,calc(100%-2rem))] -translate-x-1/2 sm:w-[min(920px,calc(100%-4rem))]">
           <div className="flex flex-wrap justify-center gap-3">
             {stickyMessage ? (
@@ -2962,7 +3103,8 @@ const pollIntervalId = window.setInterval(() => {
             ) : null}
             {unitId && !configured ? (
               <div className="rounded-2xl border border-[rgba(255,255,255,0.16)] bg-[rgba(0,0,0,0.28)] px-4 py-2 text-sm text-white/88 backdrop-blur sm:rounded-full">
-                Configure <code>FIRSTDUE_API_URL</code> and auth in your server environment variables.
+                Configure <code>FIRSTDUE_API_URL</code> and auth in your server
+                environment variables.
               </div>
             ) : null}
           </div>
@@ -2980,7 +3122,9 @@ const pollIntervalId = window.setInterval(() => {
             <p className="font-mono text-xs uppercase tracking-[0.28em]">
               {staleFeedLevel === "critical" ? "Feed Stale" : "Feed Delayed"}
             </p>
-            <p className="mt-2 text-base leading-6 sm:text-lg sm:leading-7">{staleFeedMessage}</p>
+            <p className="mt-2 text-base leading-6 sm:text-lg sm:leading-7">
+              {staleFeedMessage}
+            </p>
           </div>
         </div>
       ) : null}
