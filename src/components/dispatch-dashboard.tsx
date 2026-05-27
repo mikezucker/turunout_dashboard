@@ -2864,21 +2864,21 @@ export function DispatchDashboard() {
               </div>
 
               {primaryDispatch.message ? (
-                <div className="rounded-[1.7rem] border border-white/18 bg-white/10 px-5 py-5 xl:col-span-2">
-                  <div className="flex flex-wrap items-center justify-between gap-3">
-                    <p className="font-mono text-sm uppercase tracking-[0.3em] text-white/62">
-                      Live CAD Notes
-                    </p>
+                <div className="max-w-[58rem] rounded-[1.7rem] border border-white/18 bg-white/10 px-5 py-5 xl:col-span-1">
+  <div className="flex flex-wrap items-center justify-between gap-3">
+    <p className="font-mono text-sm uppercase tracking-[0.3em] text-white/62">
+      Live CAD Notes
+    </p>
 
-                    <p className="text-sm text-white/62">
-                      From active dispatch feed
-                    </p>
-                  </div>
+    <p className="text-sm text-white/62">
+      From active dispatch feed
+    </p>
+  </div>
 
-                  <pre className="mt-4 max-h-[16rem] whitespace-pre-wrap overflow-y-auto rounded-[1.1rem] border border-white/14 bg-black/14 px-4 py-3 font-mono text-sm leading-6 text-white/84">
-                    {primaryDispatch.message}
-                  </pre>
-                </div>
+  <pre className="mt-4 max-h-[18rem] whitespace-pre-wrap overflow-y-auto rounded-[1.1rem] border border-white/14 bg-black/18 px-5 py-4 font-mono text-[1.05rem] leading-7 text-white/90 xl:text-[1.25rem] xl:leading-8">
+    {primaryDispatch.message}
+  </pre>
+</div>
               ) : null}
 
               <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-2">
