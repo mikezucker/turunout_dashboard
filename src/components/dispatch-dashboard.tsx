@@ -1466,14 +1466,24 @@ const primaryDispatch = useMemo(() => {
 }, [featuredDispatch, freshDispatches]);
 
 useEffect(() => {
-  const element = cadNotesRef.current;
+  const frameId = window.requestAnimationFrame(() => {
+    const element = cadNotesRef.current;
 
-  if (!element) {
-    return;
-  }
+    if (!element) {
+      return;
+    }
 
-  element.scrollTop = element.scrollHeight;
+    element.scrollTo({
+      top: element.scrollHeight,
+      behavior: "smooth",
+    });
+  });
+
+  return () => {
+    window.cancelAnimationFrame(frameId);
+  };
 }, [primaryDispatch?.message]);
+
   const additionalDispatches = useMemo(() => {
     if (!primaryDispatch) {
       return freshDispatches;
