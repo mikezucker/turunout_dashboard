@@ -188,12 +188,12 @@ const IDLE_ROTATION_MS = Number(
 const WEATHER_POLL_INTERVAL_MS = Number(
   process.env.NEXT_PUBLIC_WEATHER_POLL_INTERVAL_MS ?? "300000",
 );
-const DISPATCH_FALLBACK_POLL_INTERVAL_MS = Number(
-  process.env.NEXT_PUBLIC_POLL_INTERVAL_MS ?? "10000",
-);
+//const DISPATCH_FALLBACK_POLL_INTERVAL_MS = Number(
+  //process.env.NEXT_PUBLIC_POLL_INTERVAL_MS ?? "10000",
+//);
 const STATS_POLL_INTERVAL_MS = 15 * 60 * 1000;
 const HEALTH_POLL_INTERVAL_MS = 60000;
-const DISPATCH_STREAM_RECONNECT_MS = 3000;
+//const DISPATCH_STREAM_RECONNECT_MS = 3000;
 const DISPATCH_TIME_ZONE = "America/New_York";
 const STATUS_BANNER_PERSIST_MS = 15000;
 const STALE_FEED_WARNING_MS = 90 * 1000;
@@ -868,6 +868,7 @@ export function DispatchDashboard() {
   const [now, setNow] = useState(() => Date.now());
   const [idleScreenIndex, setIdleScreenIndex] = useState(0);
   const [weatherRadarFrameIndex, setWeatherRadarFrameIndex] = useState(0);
+  const cadNotesRef = useRef<HTMLPreElement | null>(null);  
   const seenIdsRef = useRef<Set<string>>(new Set());
   const idleContentRef = useRef<HTMLDivElement | null>(null);
   const workOrdersListRef = useRef<HTMLDivElement | null>(null);
@@ -939,6 +940,7 @@ export function DispatchDashboard() {
         .sort((left, right) => compareDispatchPriority(left, right, now)),
     [activeDispatches, now],
   );
+
 
   useEffect(() => {
     const intervalId = window.setInterval(() => setNow(Date.now()), 1000);
@@ -1027,10 +1029,10 @@ export function DispatchDashboard() {
     }
 
     let active = true;
-    let eventSource: EventSource | null = null;
-    let reconnectTimeoutId: number | null = null;
+    //let eventSource: EventSource | null = null;
+    //let reconnectTimeoutId: number | null = null;
     let fetchInFlight = false;
-    let streamConnected = false;
+    //let streamConnected = false;
 
     async function loadDispatches() {
       if (fetchInFlight) {
@@ -1060,36 +1062,36 @@ export function DispatchDashboard() {
         fetchInFlight = false;
       }
     }
+//
+  //  function clearReconnectTimeout() {
+   //   if (reconnectTimeoutId !== null) {
+     //   window.clearTimeout(reconnectTimeoutId);
+       // reconnectTimeoutId = null;
+      //}
+    //}
 
-    function clearReconnectTimeout() {
-      if (reconnectTimeoutId !== null) {
-        window.clearTimeout(reconnectTimeoutId);
-        reconnectTimeoutId = null;
-      }
-    }
+    //function scheduleStreamReconnect() {
+      //if (!active || reconnectTimeoutId !== null) {
+        //return;
+      //}
 
-    function scheduleStreamReconnect() {
-      if (!active || reconnectTimeoutId !== null) {
-        return;
-      }
+      //reconnectTimeoutId = window.setTimeout(() => {
+        //reconnectTimeoutId = null;
 
-      reconnectTimeoutId = window.setTimeout(() => {
-        reconnectTimeoutId = null;
+        //if (!active) {
+          //return;
+        //}
 
-        if (!active) {
-          return;
-        }
+        //connectDispatchStream();
+      //}, DISPATCH_STREAM_RECONNECT_MS);
+    //}
 
-        connectDispatchStream();
-      }, DISPATCH_STREAM_RECONNECT_MS);
-    }
-
-    function connectDispatchStream() {
-      clearReconnectTimeout();
-      eventSource?.close();
-      eventSource = null;
-      streamConnected = false;
-    }
+    //function connectDispatchStream() {
+      //clearReconnectTimeout();
+      //eventSource?.close();
+      //eventSource = null;
+      //streamConnected = false;
+    //}
 
     function refreshDispatchesIfVisible(force = false) {
       if (!force && document.visibilityState !== "visible") {
@@ -1099,13 +1101,13 @@ export function DispatchDashboard() {
       void loadDispatches();
     }
 
-    function refreshDispatchesIfStreamUnavailable() {
-      if (streamConnected) {
-        return;
-      }
+   //function refreshDispatchesIfStreamUnavailable() {
+     // if (streamConnected) {
+      //  return;
+      //}
 
-      refreshDispatchesIfVisible();
-    }
+      //refreshDispatchesIfVisible();
+    //}
 
     void loadDispatches();
 
@@ -1126,15 +1128,13 @@ export function DispatchDashboard() {
 
     return () => {
       active = false;
-      streamConnected = false;
-      clearReconnectTimeout();
+      //streamConnected = false;
       window.clearInterval(pollIntervalId);
       window.removeEventListener("focus", refreshOnFocus);
       document.removeEventListener(
         "visibilitychange",
         refreshOnVisibilityChange,
       );
-      eventSource?.close();
     };
   }, [unitId]);
 
@@ -1448,22 +1448,32 @@ export function DispatchDashboard() {
     };
   }, [unitId]);
 
-  const primaryDispatch = useMemo(() => {
-    if (
-      featuredDispatch &&
-      freshDispatches.some((dispatch) => dispatch.id === featuredDispatch.id)
-    ) {
-      const matchedDispatch = freshDispatches.find(
-        (dispatch) => dispatch.id === featuredDispatch.id,
-      );
+const primaryDispatch = useMemo(() => {
+  if (
+    featuredDispatch &&
+    freshDispatches.some((dispatch) => dispatch.id === featuredDispatch.id)
+  ) {
+    const matchedDispatch = freshDispatches.find(
+      (dispatch) => dispatch.id === featuredDispatch.id,
+    );
 
-      if (matchedDispatch) {
-        return matchedDispatch;
-      }
+    if (matchedDispatch) {
+      return matchedDispatch;
     }
+  }
 
-    return freshDispatches[0] ?? null;
-  }, [featuredDispatch, freshDispatches]);
+  return freshDispatches[0] ?? null;
+}, [featuredDispatch, freshDispatches]);
+
+useEffect(() => {
+  const element = cadNotesRef.current;
+
+  if (!element) {
+    return;
+  }
+
+  element.scrollTop = element.scrollHeight;
+}, [primaryDispatch?.message]);
   const additionalDispatches = useMemo(() => {
     if (!primaryDispatch) {
       return freshDispatches;
@@ -2875,8 +2885,10 @@ export function DispatchDashboard() {
     </p>
   </div>
 
-  <pre className="mt-4 max-h-[18rem] whitespace-pre-wrap overflow-y-auto rounded-[1.1rem] border border-white/14 bg-black/18 px-5 py-4 font-mono text-[1.05rem] leading-7 text-white/90 xl:text-[1.25rem] xl:leading-8">
-    {primaryDispatch.message}
+<pre
+  ref={cadNotesRef}
+  className="mt-4 max-h-[18rem] whitespace-pre-wrap overflow-y-auto rounded-[1.1rem] border border-white/14 bg-black/18 px-5 py-4 font-mono text-[1.05rem] leading-7 text-white/90 xl:text-[1.25rem] xl:leading-8"
+>    {primaryDispatch.message}
   </pre>
 </div>
               ) : null}
