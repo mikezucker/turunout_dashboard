@@ -699,7 +699,7 @@ function companyBrand(unit: SerializedUnitProfile) {
     return {
       name: "Collinsville",
       monogram: "CV",
-      imageSrc: null,
+      imageSrc: "/rt24express.PNG",
       className: "border-sky-300/28 bg-sky-300/12 text-sky-50",
     };
   }
