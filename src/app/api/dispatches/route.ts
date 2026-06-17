@@ -8,13 +8,13 @@ import {
   buildDispatchApiResponse,
   dispatchApiStatusCode,
 } from "@/lib/dispatch-feed";
-import { getDispatchSnapshot } from "@/lib/dispatch-hub";
+import { getCentralDispatchSnapshot } from "@/lib/central-dispatch-feed";
 
 export const dynamic = "force-dynamic";
 
 export async function GET() {
   try {
-    const snapshot = await getDispatchSnapshot();
+    const snapshot = await getCentralDispatchSnapshot();
     const cookieStore = await cookies();
     const token = cookieStore.get(sessionCookieName())?.value;
     const unitId = readSessionToken(token);

@@ -3,7 +3,7 @@ import {
   buildDispatchApiResponse,
   dispatchApiStatusCode,
 } from "@/lib/dispatch-feed";
-import { getDispatchSnapshot } from "@/lib/dispatch-hub";
+import { getCentralDispatchSnapshot } from "@/lib/central-dispatch-feed";
 import { getUnitProfile } from "@/lib/unit-session";
 
 export const dynamic = "force-dynamic";
@@ -85,7 +85,7 @@ export async function GET(request: NextRequest) {
   }
 
   try {
-    const snapshot = await getDispatchSnapshot();
+    const snapshot = await getCentralDispatchSnapshot();
     const response = buildDispatchApiResponse(snapshot, unit.id);
 
     return NextResponse.json(response, {

@@ -110,6 +110,7 @@ type DispatchHealthResponse = {
   snapshotFetchedAt: string | null;
   snapshotUpstreamStatus: number | null;
   snapshotSourceLabel: string | null;
+  activeDispatchCount?: number;
   database: {
     configured: boolean;
     target: string | null;
@@ -2337,20 +2338,18 @@ useEffect(() => {
                   )}
                 </p>
                 <p className="mt-4 text-base text-white/68 sm:text-xl">
-                  Last FirstDue request duration
+                  Central feed request duration
                 </p>
               </div>
               <div className="rounded-[2rem] border border-amber-300/16 bg-amber-300/8 px-5 py-5 sm:px-8 sm:py-7">
                 <p className="font-mono text-sm uppercase tracking-[0.28em] text-amber-50/72">
-                  Persist Duration
+                  Central Records
                 </p>
                 <p className="mt-4 text-[3rem] font-semibold tracking-[-0.06em] text-white sm:text-[5.1rem]">
-                  {formatDurationMs(
-                    dispatchHealth?.telemetry.lastPersistDurationMs ?? null,
-                  )}
+                  {dispatchHealth?.activeDispatchCount ?? 0}
                 </p>
                 <p className="mt-4 text-base text-white/68 sm:text-xl">
-                  Snapshot + event write time
+                  Active dispatches returned by MTFD Site
                 </p>
               </div>
             </div>
@@ -2392,19 +2391,11 @@ useEffect(() => {
                 </div>
                 <div className="rounded-[1.5rem] border border-white/10 bg-white/6 px-5 py-5">
                   <p className="font-mono text-xs uppercase tracking-[0.22em] text-white/54">
-                    FirstDue Config
+                    Central Feed
                   </p>
                   <p className="mt-3 text-base leading-7 text-white/78 sm:text-xl sm:leading-8">
-                    URL{" "}
-                    {dispatchHealth?.firstDue?.apiUrl.valid
-                      ? "ready"
-                      : "invalid"}{" "}
-                    / auth{" "}
-                    {dispatchHealth?.firstDue?.auth.headerValuePresent
-                      ? "present"
-                      : "missing"}{" "}
-                    / timeout{" "}
-                    {dispatchHealth?.firstDue?.timeout.parsedMs ?? "n/a"} ms
+                    {dispatchHealth?.snapshotSourceLabel ?? "MTFD Site"} / upstream{" "}
+                    {dispatchHealth?.snapshotUpstreamStatus ?? "unavailable"}
                   </p>
                 </div>
                 <div className="rounded-[1.5rem] border border-white/10 bg-white/6 px-5 py-5">

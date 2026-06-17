@@ -8,9 +8,11 @@ async function loadDispatchModule() {
   const sourcePath = path.resolve("src/lib/dispatches.ts");
   const envSourcePath = path.resolve("src/lib/firstdue-env.ts");
   const sharedSourcePath = path.resolve("src/lib/dispatch-shared.ts");
+  const unitRulesSourcePath = path.resolve("src/lib/dispatch-unit-rules.ts");
   const source = await readFile(sourcePath, "utf8");
   const envSource = await readFile(envSourcePath, "utf8");
   const sharedSource = await readFile(sharedSourcePath, "utf8");
+  const unitRulesSource = await readFile(unitRulesSourcePath, "utf8");
   const transpiled = ts.transpileModule(source, {
     compilerOptions: {
       module: ts.ModuleKind.ES2022,
@@ -32,15 +34,24 @@ async function loadDispatchModule() {
     },
     fileName: sharedSourcePath,
   });
+  const transpiledUnitRules = ts.transpileModule(unitRulesSource, {
+    compilerOptions: {
+      module: ts.ModuleKind.ES2022,
+      target: ts.ScriptTarget.ES2022,
+    },
+    fileName: unitRulesSourcePath,
+  });
 
   const tempDir = await mkdtemp(path.join(os.tmpdir(), "turnout-dispatches-"));
   const tempModulePath = path.join(tempDir, "dispatches.mjs");
   const tempEnvModulePath = path.join(tempDir, "firstdue-env.mjs");
   const tempSharedModulePath = path.join(tempDir, "dispatch-shared.mjs");
+  const tempUnitRulesModulePath = path.join(tempDir, "dispatch-unit-rules.mjs");
   const tempNextEnvModulePath = path.join(tempDir, "next-env.mjs");
   const rewrittenDispatchModule = transpiled.outputText
     .replace(/from\s+["']@\/lib\/firstdue-env["']/g, 'from "./firstdue-env.mjs"')
-    .replace(/from\s+["']@\/lib\/dispatch-shared["']/g, 'from "./dispatch-shared.mjs"');
+    .replace(/from\s+["']@\/lib\/dispatch-shared["']/g, 'from "./dispatch-shared.mjs"')
+    .replace(/from\s+["']@\/lib\/dispatch-unit-rules["']/g, 'from "./dispatch-unit-rules.mjs"');
   const rewrittenEnvModule = transpiledEnv.outputText.replace(
     /from\s+["']@next\/env["']/g,
     'from "./next-env.mjs"',
@@ -53,6 +64,7 @@ async function loadDispatchModule() {
   );
   await writeFile(tempEnvModulePath, rewrittenEnvModule, "utf8");
   await writeFile(tempSharedModulePath, transpiledShared.outputText, "utf8");
+  await writeFile(tempUnitRulesModulePath, transpiledUnitRules.outputText, "utf8");
   await writeFile(tempModulePath, rewrittenDispatchModule, "utf8");
 
   try {
@@ -129,8 +141,8 @@ const normalizedStationDispatches = normalizeDispatchPayload([
   },
 ]);
 
-assert.equal(normalizedStationDispatches[0]?.unit, "Station 1");
-printResult("normalizes station-only dispatch assignments");
+assert.equal(normalizedStationDispatches[0]?.unit, null);
+printResult("removes station-only notification assignments");
 
 assert.equal(
   filterDispatchesForUnit(normalizedStationDispatches, {
@@ -141,6 +153,6 @@ assert.equal(
     radioName: "E1",
     dispatchAliases: [],
   }).length,
-  1,
+  0,
 );
-printResult("matches station-only dispatches for units at that station");
+printResult("does not match station-only notifications as responding units");

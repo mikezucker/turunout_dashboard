@@ -3,6 +3,7 @@ import {
   getFirstDueAuthConfig,
   getFirstDueTimeoutMs,
 } from "@/lib/firstdue-env";
+import { filterRespondingUnits } from "@/lib/dispatch-unit-rules";
 import {
   sortDispatchesNewestFirst,
   type DispatchRecord,
@@ -218,6 +219,12 @@ function joinStringValues(...values: Array<string | null>) {
   );
 
   return parts.length > 0 ? parts.join(", ") : null;
+}
+
+function splitUnitList(value: string | null) {
+  return value
+    ? value.split(",").map((unit) => unit.trim()).filter(Boolean)
+    : [];
 }
 
 function inferArray(payload: unknown): unknown[] {
@@ -445,9 +452,13 @@ function normalizeRecord(item: unknown, index: number): DispatchRecord | null {
     pickString(record, INCIDENT_KEYS) ??
     `dispatch-${index}`;
   const incidentNumber = pickString(record, INCIDENT_KEYS);
-  const unit = joinStringValues(
-    pickString(record, UNIT_KEYS),
-    pickString(record, STATION_KEYS),
+  const units = filterRespondingUnits(
+    splitUnitList(
+      joinStringValues(
+        pickString(record, UNIT_KEYS),
+        pickString(record, STATION_KEYS),
+      ),
+    ),
   );
 
   return {
@@ -455,7 +466,7 @@ function normalizeRecord(item: unknown, index: number): DispatchRecord | null {
     incidentNumber,
     address: pickString(record, ADDRESS_KEYS),
     nature: pickString(record, NATURE_KEYS),
-    unit,
+    unit: units.length > 0 ? units.join(", ") : null,
     status: pickString(record, STATUS_KEYS),
     dispatchedAt:
       resolveEmsDutyDispatchTime(record, incidentNumber) ??
@@ -467,7 +478,10 @@ function normalizeRecord(item: unknown, index: number): DispatchRecord | null {
       pickString(record, TIMESTAMP_KEYS),
     message: stringifyValue(record.message),
     enrouteAt: pickString(record, ENROUTE_KEYS),
-    raw: item,
+    raw: {
+      ...record,
+      unit_codes: units,
+    },
   };
 }
 
