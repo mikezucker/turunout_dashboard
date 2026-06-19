@@ -811,6 +811,28 @@ function DepartmentLogo({
   );
 }
 
+
+function formatDispatchRevisionTime(revision: number | string | null | undefined) {
+  if (revision === null || revision === undefined || revision === "") {
+    return "No refresh yet";
+  }
+
+  const timestamp = Number(revision);
+
+  if (!Number.isFinite(timestamp) || timestamp <= 0) {
+    return "No refresh yet";
+  }
+
+  return new Intl.DateTimeFormat("en-US", {
+    month: "short",
+    day: "numeric",
+    year: "numeric",
+    hour: "numeric",
+    minute: "2-digit",
+    second: "2-digit",
+  }).format(new Date(timestamp));
+}
+
 export function DispatchDashboard() {
   const [dispatches, setDispatches] = useState<DispatchRecord[]>([]);
   const [fetchedAt, setFetchedAt] = useState<string | null>(null);
@@ -2164,7 +2186,7 @@ useEffect(() => {
                 <p className="font-mono text-sm uppercase tracking-[0.28em] text-white/56">
                   Total Dept. Calls
                 </p>
-                <p className="mt-4 text-[3rem] font-semibold tracking-[-0.06em] text-white sm:text-[5.1rem]">
+                <p className="mt-4 text-3xl font-semibold leading-tight text-white sm:text-4xl">
                   {statsUnavailable ? "Unavailable" : totalDepartmentCalls}
                 </p>
                 <p className="mt-4 text-base text-white/68 sm:text-xl">
@@ -2286,7 +2308,7 @@ useEffect(() => {
           dispatchHealthMessage ??
           dispatchHealth?.telemetry.lastError ??
           "Current poller, persistence, and shared-store status.",
-        contentVersion: `health:${dispatchHealth?.revision ?? 0}:${dispatchHealth?.snapshotFetchedAt ?? ""}:${dispatchHealth?.telemetry.lastFetchDurationMs ?? "na"}:${dispatchHealth?.telemetry.lastPersistDurationMs ?? "na"}:${dispatchHealthMessage ?? ""}`,
+        contentVersion: `health:${formatDispatchRevisionTime(dispatchHealth?.revision)}:${dispatchHealth?.snapshotFetchedAt ?? ""}:${dispatchHealth?.telemetry.lastFetchDurationMs ?? "na"}:${dispatchHealth?.telemetry.lastPersistDurationMs ?? "na"}:${dispatchHealthMessage ?? ""}`,
         backgroundStyle: {
           background:
             "radial-gradient(circle at top right, rgba(255,255,255,0.14), transparent 18%), radial-gradient(circle at 14% 22%, rgba(140,184,255,0.24), transparent 20%), linear-gradient(145deg, rgba(34,46,84,0.98), rgba(36,69,122,0.94) 52%, rgba(21,31,61,0.96))",
@@ -2318,10 +2340,10 @@ useEffect(() => {
               </div>
               <div className="rounded-[2rem] border border-white/12 bg-white/7 px-5 py-5 sm:px-8 sm:py-7">
                 <p className="font-mono text-sm uppercase tracking-[0.28em] text-white/56">
-                  Snapshot Revision
+                  Feed Last Updated
                 </p>
-                <p className="mt-4 text-[3rem] font-semibold tracking-[-0.06em] text-white sm:text-[5.1rem]">
-                  {dispatchHealth?.revision ?? 0}
+                <p className="mt-4 text-2xl font-semibold leading-tight text-white sm:text-3xl">
+                  {formatDispatchRevisionTime(dispatchHealth?.revision)}
                 </p>
                 <p className="mt-4 text-base text-white/68 sm:text-xl">
                   Upstream{" "}
