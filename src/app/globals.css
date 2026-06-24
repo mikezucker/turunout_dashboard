@@ -11,6 +11,10 @@
   --ok: #22634d;
   --warn: #8c5c11;
   --danger: #8a1c1c;
+  --font-apple-sans: "SF Pro Display", "SF Pro Text", -apple-system,
+    BlinkMacSystemFont, system-ui, "Helvetica Neue", Arial, sans-serif;
+  --font-apple-mono: "SF Mono", "Menlo", "Monaco", "Cascadia Mono",
+    "Segoe UI Mono", monospace;
   --safe-top: env(safe-area-inset-top, 0px);
   --safe-right: env(safe-area-inset-right, 0px);
   --safe-bottom: env(safe-area-inset-bottom, 0px);
@@ -20,8 +24,8 @@
 @theme inline {
   --color-background: var(--background);
   --color-foreground: var(--foreground);
-  --font-sans: var(--font-space-grotesk);
-  --font-mono: var(--font-ibm-plex-mono);
+  --font-sans: var(--font-apple-sans);
+  --font-mono: var(--font-apple-mono);
 }
 
 * {
@@ -44,7 +48,15 @@ body {
   padding: 0;
   background: var(--background);
   color: var(--foreground);
-  font-family: var(--font-space-grotesk), sans-serif;
+  font-family: var(--font-apple-sans);
+  text-rendering: optimizeLegibility;
+}
+
+button,
+input,
+select,
+textarea {
+  font: inherit;
 }
 
 a {

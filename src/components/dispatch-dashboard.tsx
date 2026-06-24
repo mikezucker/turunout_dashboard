@@ -1741,7 +1741,7 @@ useEffect(() => {
               <p className="font-mono text-sm uppercase tracking-[0.28em] text-white/56">
                 Queue Status
               </p>
-              <p className="mt-5 text-[3.2rem] font-semibold tracking-[-0.06em] text-white sm:text-[5.25rem]">
+              <p className="mt-5 text-[3.2rem] font-semibold tracking-normal text-white sm:text-[5.25rem]">
                 {group.workOrders.length}
               </p>
               <p className="mt-3 text-lg text-white/72 sm:text-xl">
@@ -1792,7 +1792,7 @@ useEffect(() => {
                     <p className="font-mono text-xs uppercase tracking-[0.34em] text-[#f3d19d]/62">
                       Station Board
                     </p>
-                    <p className="mt-4 text-[2rem] font-semibold tracking-[-0.05em] text-[#fff7ea] sm:text-[2.7rem]">
+                    <p className="mt-4 text-[2rem] font-semibold tracking-normal text-[#fff7ea] sm:text-[2.7rem]">
                       {companyBrand(unit).name}
                     </p>
                     <p className="mt-2 text-base text-[#f6e2c0]/68 sm:text-lg">
@@ -1803,7 +1803,7 @@ useEffect(() => {
                         <p className="font-mono text-xs uppercase tracking-[0.24em] text-[#f3d19d]/56">
                           Active Notes
                         </p>
-                        <p className="mt-3 text-[2.5rem] font-semibold tracking-[-0.06em] text-white">
+                        <p className="mt-3 text-[2.5rem] font-semibold tracking-normal text-white">
                           {totalDashboardNotes}
                         </p>
                       </div>
@@ -2197,7 +2197,7 @@ useEffect(() => {
                 <p className="font-mono text-sm uppercase tracking-[0.28em] text-white/56">
                   {`Total ${responseLabel} Calls`}
                 </p>
-                <p className="mt-4 text-[3rem] font-semibold tracking-[-0.06em] text-white sm:text-[5.1rem]">
+                <p className="mt-4 text-[3rem] font-semibold tracking-normal text-white sm:text-[5.1rem]">
                   {statsUnavailable ? "Unavailable" : totalApparatusCalls}
                 </p>
                 <p className="mt-4 text-base text-white/68 sm:text-xl">
@@ -2208,7 +2208,7 @@ useEffect(() => {
                 <p className="font-mono text-sm uppercase tracking-[0.28em] text-red-50/72">
                   Fire
                 </p>
-                <p className="mt-4 text-[3rem] font-semibold tracking-[-0.06em] text-white sm:text-[5.1rem]">
+                <p className="mt-4 text-[3rem] font-semibold tracking-normal text-white sm:text-[5.1rem]">
                   {statsUnavailable ? "Unavailable" : fireRescueCalls}
                 </p>
                 <p className="mt-4 text-base text-white/68 sm:text-xl">
@@ -2219,7 +2219,7 @@ useEffect(() => {
                 <p className="font-mono text-sm uppercase tracking-[0.28em] text-sky-50/72">
                   EMS
                 </p>
-                <p className="mt-4 text-[3rem] font-semibold tracking-[-0.06em] text-white sm:text-[5.1rem]">
+                <p className="mt-4 text-[3rem] font-semibold tracking-normal text-white sm:text-[5.1rem]">
                   {statsUnavailable ? "Unavailable" : emsCalls}
                 </p>
                 <p className="mt-4 text-base text-white/68 sm:text-xl">
@@ -2354,7 +2354,7 @@ useEffect(() => {
                 <p className="font-mono text-sm uppercase tracking-[0.28em] text-sky-50/72">
                   Fetch Latency
                 </p>
-                <p className="mt-4 text-[3rem] font-semibold tracking-[-0.06em] text-white sm:text-[5.1rem]">
+                <p className="mt-4 text-[3rem] font-semibold tracking-normal text-white sm:text-[5.1rem]">
                   {formatDurationMs(
                     dispatchHealth?.telemetry.lastFetchDurationMs ?? null,
                   )}
@@ -2367,7 +2367,7 @@ useEffect(() => {
                 <p className="font-mono text-sm uppercase tracking-[0.28em] text-amber-50/72">
                   Central Records
                 </p>
-                <p className="mt-4 text-[3rem] font-semibold tracking-[-0.06em] text-white sm:text-[5.1rem]">
+                <p className="mt-4 text-[3rem] font-semibold tracking-normal text-white sm:text-[5.1rem]">
                   {dispatchHealth?.activeDispatchCount ?? 0}
                 </p>
                 <p className="mt-4 text-base text-white/68 sm:text-xl">
@@ -2677,7 +2677,7 @@ useEffect(() => {
           <p className="font-mono text-sm uppercase tracking-[0.3em] text-[var(--signal)]">
             Turnout / Loading
           </p>
-          <h1 className="mt-4 text-3xl font-semibold tracking-[-0.04em] sm:text-4xl">
+          <h1 className="mt-4 text-3xl font-semibold tracking-normal sm:text-4xl">
             Checking unit session
           </h1>
         </section>
@@ -2696,7 +2696,7 @@ useEffect(() => {
             <p className="font-mono text-sm uppercase tracking-[0.3em] text-[var(--signal)]">
               Turnout / Unit Login
             </p>
-            <h1 className="mt-3 text-3xl font-semibold tracking-[-0.04em] sm:text-4xl">
+            <h1 className="mt-3 text-3xl font-semibold tracking-normal sm:text-4xl">
               Sign in this display to a unit
             </h1>
             <p className="mt-3 max-w-xl text-base text-black/65">
@@ -2769,13 +2769,13 @@ useEffect(() => {
                 <p className="mt-2 font-mono text-xs uppercase tracking-[0.3em] text-white/52">
                   Address
                 </p>
-                <h1 className="mt-1 max-w-5xl text-[2.3rem] font-semibold leading-[0.92] tracking-[-0.06em] text-white sm:line-clamp-2 sm:text-[3.2rem] xl:text-[4.6rem] 2xl:text-[5.1rem]">
+                <h1 className="mt-1 max-w-5xl text-[2.3rem] font-semibold leading-[0.92] tracking-normal text-white sm:line-clamp-2 sm:text-[3.2rem] xl:text-[4.6rem] 2xl:text-[5.1rem]">
                   {primaryDispatch.address ?? "Address not provided"}
                 </h1>
                 <p className="mt-2 font-mono text-xs uppercase tracking-[0.3em] text-white/52">
                   Call Type
                 </p>
-                <p className="mt-1 max-w-5xl text-[2.2rem] font-medium leading-[0.92] tracking-[-0.06em] text-white/88 sm:line-clamp-2 sm:text-[3.1rem] xl:text-[4.6rem] 2xl:text-[5.1rem]">
+                <p className="mt-1 max-w-5xl text-[2.2rem] font-medium leading-[0.92] tracking-normal text-white/88 sm:line-clamp-2 sm:text-[3.1rem] xl:text-[4.6rem] 2xl:text-[5.1rem]">
                   {primaryDispatch.nature ?? "Dispatch Alert"}
                 </p>
               </div>
@@ -2985,7 +2985,7 @@ useEffect(() => {
               <p className="font-mono text-sm uppercase tracking-[0.3em] text-white/62">
                 Elapsed Since Dispatch
               </p>
-              <p className="mt-3 font-mono text-[3rem] font-medium tracking-[-0.06em] sm:text-[4rem] xl:text-[5.1rem]">
+              <p className="mt-3 font-mono text-[3rem] font-medium tracking-normal sm:text-[4rem] xl:text-[5.1rem]">
                 {featuredElapsed}
               </p>
             </div>
@@ -3059,7 +3059,7 @@ useEffect(() => {
                 <p className="font-mono text-xs uppercase tracking-[0.24em] text-white/58 sm:text-sm sm:tracking-[0.34em]">
                   {currentIdleScreen.eyebrow}
                 </p>
-                <h1 className="mt-2 max-w-4xl text-[2rem] font-semibold leading-[0.96] tracking-[-0.07em] text-white sm:text-[3.2rem] 2xl:text-[4.9rem]">
+                <h1 className="mt-2 max-w-4xl text-[2rem] font-semibold leading-[0.96] tracking-normal text-white sm:text-[3.2rem] 2xl:text-[4.9rem]">
                   {currentIdleScreen.title}
                 </h1>
                 <p className="mt-3 max-w-3xl text-base leading-tight text-white/80 sm:text-lg 2xl:text-xl">
