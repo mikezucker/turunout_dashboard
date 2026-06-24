@@ -2186,7 +2186,7 @@ useEffect(() => {
                 <p className="font-mono text-sm uppercase tracking-[0.28em] text-white/56">
                   Total Dept. Calls
                 </p>
-                <p className="mt-4 text-3xl font-semibold leading-tight text-white sm:text-4xl">
+                <p className="mt-4 text-[3rem] font-semibold tracking-normal text-white sm:text-[5.1rem]">
                   {statsUnavailable ? "Unavailable" : totalDepartmentCalls}
                 </p>
                 <p className="mt-4 text-base text-white/68 sm:text-xl">
