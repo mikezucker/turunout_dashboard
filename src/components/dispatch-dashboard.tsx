@@ -87,6 +87,7 @@ type StatsResponse = {
   liveTotalsAvailable: boolean;
   totalDepartmentCalls: number;
   totalApparatusCalls: number;
+  totalScopedCalls?: number;
   emsCalls: number;
   fireRescueCalls: number;
   rollingWindows: Array<{
@@ -94,6 +95,7 @@ type StatsResponse = {
     days: number;
     totalDepartmentCalls: number;
     totalApparatusCalls: number;
+    totalScopedCalls?: number;
     emsCalls: number;
     fireRescueCalls: number;
     sourceLabel: string | null;
@@ -901,8 +903,8 @@ export function DispatchDashboard() {
   const unitApparatusApiId = unit?.apparatusApiId ?? null;
   const isStationScope = unit?.scopeKind === "station";
   const unitScopeLabel = isStationScope ? "Station" : "Unit";
-  const responseLabel = isStationScope ? "Company" : "Apparatus";
-  const responseLabelPlural = isStationScope ? "companies" : "apparatus";
+  const responseLabel = isStationScope ? "Station" : "Apparatus";
+  const responseLabelPlural = isStationScope ? "station calls" : "apparatus";
   const unitMembershipSummary = unit?.memberUnitDisplayNames.length
     ? unit.memberUnitDisplayNames.join(" / ")
     : unit
@@ -1378,7 +1380,7 @@ export function DispatchDashboard() {
         setStatsYear(data.year);
         setLiveStatsAvailable(data.liveTotalsAvailable);
         setTotalDepartmentCalls(data.totalDepartmentCalls);
-        setTotalApparatusCalls(data.totalApparatusCalls);
+        setTotalApparatusCalls(data.totalScopedCalls ?? data.totalApparatusCalls);
         setEmsCalls(data.emsCalls);
         setFireRescueCalls(data.fireRescueCalls);
         setRollingWindows(data.rollingWindows);
@@ -2165,7 +2167,7 @@ useEffect(() => {
         description:
           statsMessage ??
           `Year-to-date department call volume with ${unit.displayName} ${responseLabel.toLowerCase()} totals, plus rolling recent windows from FirstDue history.`,
-        contentVersion: `stats:${statsYear}:${totalDepartmentCalls}:${totalApparatusCalls}:${emsCalls}:${fireRescueCalls}:${rollingWindows.map((window) => `${window.days}:${window.totalDepartmentCalls}:${window.totalApparatusCalls}`).join("|")}:${statsMessage ?? ""}`,
+        contentVersion: `stats:${statsYear}:${totalDepartmentCalls}:${totalApparatusCalls}:${emsCalls}:${fireRescueCalls}:${rollingWindows.map((window) => `${window.days}:${window.totalDepartmentCalls}:${window.totalScopedCalls ?? window.totalApparatusCalls}`).join("|")}:${statsMessage ?? ""}`,
         backgroundStyle: {
           background:
             "radial-gradient(circle at top left, rgba(255,255,255,0.14), transparent 20%), radial-gradient(circle at 82% 16%, rgba(102,232,180,0.22), transparent 18%), linear-gradient(140deg, rgba(25,92,82,0.98), rgba(19,54,63,0.94) 52%, rgba(15,33,41,0.96))",
@@ -2212,7 +2214,7 @@ useEffect(() => {
                   {statsUnavailable ? "Unavailable" : fireRescueCalls}
                 </p>
                 <p className="mt-4 text-base text-white/68 sm:text-xl">
-                  Department fire/rescue incidents
+                  {`${responseLabel} fire/rescue incidents`}
                 </p>
               </div>
               <div className="self-start rounded-[2rem] border border-sky-300/16 bg-sky-300/8 px-5 py-5 sm:px-8 sm:py-7">
@@ -2223,7 +2225,7 @@ useEffect(() => {
                   {statsUnavailable ? "Unavailable" : emsCalls}
                 </p>
                 <p className="mt-4 text-base text-white/68 sm:text-xl">
-                  Department EMS incidents
+                  {`${responseLabel} EMS incidents`}
                 </p>
               </div>
             </div>
@@ -2234,7 +2236,7 @@ useEffect(() => {
               <div className="mt-6 grid gap-4">
                 <div className="rounded-[1.5rem] border border-white/10 bg-white/6 px-5 py-5">
                   <p className="font-mono text-xs uppercase tracking-[0.22em] text-white/54">
-                    Department Split
+                    {`${responseLabel} Split`}
                   </p>
                   <p className="mt-3 text-[1.4rem] font-medium leading-tight text-white sm:text-[1.9rem]">
                     {statsUnavailable
@@ -2271,7 +2273,7 @@ useEffect(() => {
                             </p>
                             <p className="mt-1 text-sm text-white/62">
                               {window.totalDepartmentCalls} dept. /{" "}
-                              {window.totalApparatusCalls} {responseLabelPlural}
+                              {window.totalScopedCalls ?? window.totalApparatusCalls} {responseLabelPlural}
                             </p>
                           </div>
                           <p className="font-mono text-xs uppercase tracking-[0.18em] text-white/48">
