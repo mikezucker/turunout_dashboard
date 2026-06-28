@@ -1472,9 +1472,9 @@ export function DispatchDashboard() {
           return;
         }
 
-        setStationMessages(data.messages);
-        setStationMessagesMessage(data.message);
-        setStationMessagesStationNumber(data.stationNumber);
+        setStationMessages(Array.isArray(data.messages) ? data.messages : []);
+        setStationMessagesMessage(data.message ?? null);
+        setStationMessagesStationNumber(data.stationNumber ?? null);
       } catch (error) {
         if (!active) {
           return;
@@ -1796,7 +1796,19 @@ useEffect(() => {
     () => stationMessages.filter((message) => message.isPinned),
     [stationMessages],
   );
-  const statsUnavailable = !liveStatsAvailable;
+  const statsHaveAnyTotals =
+    totalDepartmentCalls > 0 ||
+    totalApparatusCalls > 0 ||
+    emsCalls > 0 ||
+    fireRescueCalls > 0 ||
+    rollingWindows.some(
+      (window) =>
+        window.totalDepartmentCalls > 0 ||
+        (window.totalScopedCalls ?? window.totalApparatusCalls) > 0 ||
+        window.emsCalls > 0 ||
+        window.fireRescueCalls > 0,
+    );
+  const statsUnavailable = !liveStatsAvailable && !statsHaveAnyTotals;
   const idleScreens = useMemo<IdleScreen[]>(() => {
     if (!unit) {
       return [];
@@ -2124,12 +2136,12 @@ useEffect(() => {
               title:
                 stationMessages.length > 0
                   ? `${unit.station} Message Center`
-                  : `No Active Messages for ${unit.station}`,
+                  : `${unit.station} Message Center`,
               description:
                 stationMessagesMessage ??
                 (stationMessages.length > 0
                   ? `${stationMessages.length} active department or station message${stationMessages.length === 1 ? "" : "s"} for ${unit.station}.`
-                  : "Department and station messages from the shared member backend will appear here when posted."),
+                  : `There are no station messages to display currently for ${unit.station}.`),
               contentVersion: `station-messages:${stationMessagesStationNumber ?? ""}:${stationMessages.map((message) => `${message.id}:${message.updatedAt}`).join("|")}:${stationMessagesMessage ?? ""}`,
               scrollable: true,
               backgroundStyle: {
@@ -2187,20 +2199,22 @@ useEffect(() => {
                     </div>
                     <p className="mt-7 text-sm leading-7 text-white/58 sm:text-base sm:leading-8">
                       {stationMessagesMessage ??
-                        "Closing or rotating this screen does not mark messages read for any member. Policy items show links only."}
+                        (stationMessages.length > 0
+                          ? "Closing or rotating this screen does not mark messages read for any member. Policy items show links only."
+                          : "This station screen stays in the rotation so the message center is visible even when the shared feed is clear.")}
                     </p>
                   </aside>
                   <div className="grid content-start gap-4">
                     {stationMessages.length === 0 ? (
                       <article className="rounded-[2rem] border border-emerald-200/22 bg-emerald-300/10 px-5 py-8 text-white sm:px-7 sm:py-10">
                         <p className="font-mono text-xs uppercase tracking-[0.28em] text-emerald-50/68">
-                          No Active Station Messages
+                          No Messages To Display
                         </p>
                         <p className="mt-4 text-[1.75rem] font-semibold leading-tight sm:text-[2.6rem]">
-                          The station message board is clear.
+                          There are no station messages to display currently.
                         </p>
                         <p className="mt-4 max-w-3xl text-[1.1rem] leading-8 text-white/70 sm:text-[1.45rem] sm:leading-9">
-                          Critical banners, high-priority cards, important notices, and informational updates will rotate here when posted from the shared Message Center.
+                          New critical banners, high-priority cards, important notices, and informational updates will appear here from the shared Message Center.
                         </p>
                       </article>
                     ) : stationMessages.map((message, index) => {
