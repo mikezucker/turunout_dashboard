@@ -41,7 +41,11 @@ const MTFD_SITE_BASE_URL =
   process.env.MTFD_SITE_BASE_URL ?? "https://new-mtfd-site.vercel.app";
 
 function dashboardApiToken() {
-  return process.env.DASHBOARD_API_TOKEN?.trim() || null;
+  return (
+    process.env.DASHBOARD_API_TOKEN?.trim() ||
+    process.env.DISPATCH_MOBILE_API_TOKEN?.trim() ||
+    null
+  );
 }
 
 function emptyStatsResponse(message: string, status = 200) {

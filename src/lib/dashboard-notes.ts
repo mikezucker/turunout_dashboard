@@ -47,7 +47,10 @@ function getDashboardNotesApiUrl() {
 
 function getDashboardNotesApiToken() {
   ensureServerEnvLoaded();
-  return normalizeEnvValue(process.env.DASHBOARD_API_TOKEN);
+  return (
+    normalizeEnvValue(process.env.DASHBOARD_API_TOKEN) ??
+    normalizeEnvValue(process.env.DISPATCH_MOBILE_API_TOKEN)
+  );
 }
 
 function getDashboardNotesTimeoutMs() {

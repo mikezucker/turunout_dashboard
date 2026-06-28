@@ -2303,6 +2303,7 @@ useEffect(() => {
     return [
       ...stationMessagesScreen,
       ...workOrderScreens,
+      ...stationMessagesScreen,
       ...dashboardNotesScreen,
       {
         id: "weather",
