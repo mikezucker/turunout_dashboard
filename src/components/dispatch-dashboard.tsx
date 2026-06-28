@@ -996,7 +996,6 @@ export function DispatchDashboard() {
   const cadNotesRef = useRef<HTMLPreElement | null>(null);  
   const seenIdsRef = useRef<Set<string>>(new Set());
   const idleContentRef = useRef<HTMLDivElement | null>(null);
-  const workOrdersListRef = useRef<HTMLDivElement | null>(null);
   const timelineListRef = useRef<HTMLDivElement | null>(null);
   const stickyMessageTimeoutRef = useRef<number | null>(null);
   const unitId = unit?.id ?? null;
@@ -1866,10 +1865,7 @@ useEffect(() => {
         ),
         content: (
           <div className="grid h-full min-h-0 gap-5 xl:grid-cols-[minmax(0,1.3fr)_minmax(320px,0.7fr)]">
-            <div
-              ref={workOrdersListRef}
-              className="min-h-0 overflow-y-auto sm:pr-3"
-            >
+            <div className="min-h-0">
               <ul className="grid gap-4">
                 {group.workOrders.length > 0 ? (
                   group.workOrders.map((order) => (
@@ -2291,8 +2287,8 @@ useEffect(() => {
         : [];
 
     return [
-      ...workOrderScreens,
       ...stationMessagesScreen,
+      ...workOrderScreens,
       ...dashboardNotesScreen,
       {
         id: "weather",
@@ -2830,9 +2826,7 @@ useEffect(() => {
       return;
     }
 
-    const scrollContainer = currentIdleScreen.id.startsWith("work-orders:")
-      ? (workOrdersListRef.current ?? container)
-      : container;
+    const scrollContainer = container;
 
     scrollContainer.scrollTo({ top: 0, behavior: "auto" });
 
