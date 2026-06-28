@@ -198,6 +198,14 @@ const STATS_POLL_INTERVAL_MS = 15 * 60 * 1000;
 const HEALTH_POLL_INTERVAL_MS = 60000;
 //const DISPATCH_STREAM_RECONNECT_MS = 3000;
 const DISPATCH_TIME_ZONE = "America/New_York";
+
+function numberOrDefault(value: unknown, fallback: number) {
+  return typeof value === "number" && Number.isFinite(value) ? value : fallback;
+}
+
+function stringOrNull(value: unknown) {
+  return typeof value === "string" ? value : null;
+}
 const STATUS_BANNER_PERSIST_MS = 15000;
 const STALE_FEED_WARNING_MS = 90 * 1000;
 const STALE_FEED_CRITICAL_MS = 5 * 60 * 1000;
@@ -1377,15 +1385,32 @@ export function DispatchDashboard() {
           return;
         }
 
-        setStatsYear(data.year);
-        setLiveStatsAvailable(data.liveTotalsAvailable);
-        setTotalDepartmentCalls(data.totalDepartmentCalls);
-        setTotalApparatusCalls(data.totalScopedCalls ?? data.totalApparatusCalls);
-        setEmsCalls(data.emsCalls);
-        setFireRescueCalls(data.fireRescueCalls);
-        setRollingWindows(data.rollingWindows);
-        setStatsMessage(data.message);
-        setStatsSourceLabel(data.sourceLabel);
+        const rollingWindows = Array.isArray(data.rollingWindows)
+          ? data.rollingWindows
+          : [];
+        const totalDepartmentCalls = numberOrDefault(
+          data.totalDepartmentCalls,
+          0,
+        );
+        const totalApparatusCalls = numberOrDefault(
+          data.totalScopedCalls,
+          numberOrDefault(data.totalApparatusCalls, 0),
+        );
+        const emsCalls = numberOrDefault(data.emsCalls, 0);
+        const fireRescueCalls = numberOrDefault(data.fireRescueCalls, 0);
+        const message =
+          stringOrNull(data.message) ??
+          (!response.ok ? `Stats request failed (${response.status}).` : null);
+
+        setStatsYear(numberOrDefault(data.year, new Date().getFullYear()));
+        setLiveStatsAvailable(data.liveTotalsAvailable === true);
+        setTotalDepartmentCalls(totalDepartmentCalls);
+        setTotalApparatusCalls(totalApparatusCalls);
+        setEmsCalls(emsCalls);
+        setFireRescueCalls(fireRescueCalls);
+        setRollingWindows(rollingWindows);
+        setStatsMessage(message);
+        setStatsSourceLabel(stringOrNull(data.sourceLabel));
       } catch (error) {
         if (!active) {
           return;
