@@ -61,13 +61,8 @@ function getStationMessagesApiUrl() {
   ensureServerEnvLoaded();
   return (
     normalizeEnvValue(process.env.STATION_DASHBOARD_MESSAGES_API_URL) ??
-    `${getMtfdSiteBaseUrl()}/api/station-dashboard/messages`
+    `${getMtfdSiteBaseUrl()}/api/shared/station-messages`
   );
-}
-
-function getDashboardApiToken() {
-  ensureServerEnvLoaded();
-  return normalizeEnvValue(process.env.DASHBOARD_API_TOKEN);
 }
 
 function getStationMessagesTimeoutMs() {
@@ -109,12 +104,11 @@ export async function fetchStationMessagesForUnit(
   }
 
   const apiUrl = getStationMessagesApiUrl();
-  const apiToken = getDashboardApiToken();
 
-  if (!apiUrl || !apiToken) {
+  if (!apiUrl) {
     return {
-      ok: false,
-      message: "Station messages feed is not configured.",
+      ok: true,
+      message: "No active messages at this time.",
       stationNumber,
       messages: [],
     };
@@ -143,7 +137,6 @@ export async function fetchStationMessagesForUnit(
       method: "GET",
       headers: {
         Accept: "application/json",
-        Authorization: `Bearer ${apiToken}`,
       },
       cache: "no-store",
       signal: controller.signal,
@@ -163,11 +156,13 @@ export async function fetchStationMessagesForUnit(
       };
     }
 
+    const messages = Array.isArray(payload?.messages) ? payload.messages : [];
+
     return {
       ok: true,
-      message: null,
+      message: messages.length > 0 ? null : "No active messages at this time.",
       stationNumber: payload?.stationNumber ?? stationNumber,
-      messages: Array.isArray(payload?.messages) ? payload.messages : [],
+      messages,
     };
   } catch (error) {
     return {

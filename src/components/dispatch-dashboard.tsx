@@ -79,6 +79,36 @@ type DashboardNotesResponse = {
   officerNotes: DashboardNotesItem[];
 };
 
+type StationMessageItem = {
+  id: string;
+  title: string;
+  body: string | null;
+  type: string;
+  priority: "NORMAL" | "HIGH" | "CRITICAL" | string;
+  audience: string | null;
+  stationNumberTarget: number | null;
+  stationLabel: string | null;
+  linkUrl: string | null;
+  linkLabel: string | null;
+  isPinned: boolean;
+  createdAt: string;
+  updatedAt: string;
+  expiresAt: string | null;
+  dashboardDisplay?: {
+    summary: string;
+    canClose: boolean;
+    shouldReturnAfterClose: boolean;
+    policyActionOnly: boolean;
+  };
+};
+
+type StationMessagesResponse = {
+  ok: boolean;
+  message: string | null;
+  stationNumber: number | null;
+  messages: StationMessageItem[];
+};
+
 type StatsResponse = {
   ok: boolean;
   message: string | null;
@@ -750,6 +780,68 @@ function companyBrand(unit: SerializedUnitProfile) {
   };
 }
 
+function messageTypeIcon(type: string, priority: string) {
+  switch (type) {
+    case "TRAINING":
+    case "TRAINING_REMINDER":
+      return "✅";
+    case "EVENT":
+      return "📅";
+    case "STAFFING":
+      return "👥";
+    case "OFFICER_NOTE":
+      return "🚒";
+    case "POLICY_LINK":
+      return "📄";
+    case "ANNOUNCEMENT":
+      return "📬";
+    default:
+      return priority === "CRITICAL" ? "⚠️" : "📬";
+  }
+}
+
+function messageTypeLabel(type: string) {
+  return type
+    .toLowerCase()
+    .split("_")
+    .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
+    .join(" ");
+}
+
+function priorityClasses(priority: string) {
+  if (priority === "CRITICAL") {
+    return "border-red-200/55 bg-red-500/26 text-red-50 shadow-[0_0_42px_rgba(248,113,113,0.18)]";
+  }
+
+  if (priority === "HIGH" || priority === "HIGH_PRIORITY") {
+    return "border-amber-200/36 bg-amber-300/14 text-amber-50";
+  }
+
+  if (priority === "NORMAL" || priority === "IMPORTANT") {
+    return "border-sky-200/24 bg-sky-300/10 text-sky-50";
+  }
+
+  return "border-white/12 bg-white/7 text-white";
+}
+
+function priorityLabel(priority: string) {
+  switch (priority) {
+    case "LOW":
+    case "INFORMATION":
+      return "Information";
+    case "NORMAL":
+    case "IMPORTANT":
+      return "Important";
+    case "HIGH":
+    case "HIGH_PRIORITY":
+      return "High Priority";
+    case "CRITICAL":
+      return "Critical";
+    default:
+      return messageTypeLabel(priority);
+  }
+}
+
 function UnitBrandBlock({ unit }: { unit: SerializedUnitProfile }) {
   const company = companyBrand(unit);
 
@@ -872,6 +964,14 @@ export function DispatchDashboard() {
   const [dashboardNotesMessage, setDashboardNotesMessage] = useState<
     string | null
   >(null);
+  const [stationMessages, setStationMessages] = useState<StationMessageItem[]>(
+    [],
+  );
+  const [stationMessagesMessage, setStationMessagesMessage] = useState<
+    string | null
+  >(null);
+  const [stationMessagesStationNumber, setStationMessagesStationNumber] =
+    useState<number | null>(null);
   const [statsYear, setStatsYear] = useState<number>(new Date().getFullYear());
   const [liveStatsAvailable, setLiveStatsAvailable] = useState(false);
   const [totalDepartmentCalls, setTotalDepartmentCalls] = useState(0);
@@ -904,7 +1004,6 @@ export function DispatchDashboard() {
   const cadNotesRef = useRef<HTMLPreElement | null>(null);  
   const seenIdsRef = useRef<Set<string>>(new Set());
   const idleContentRef = useRef<HTMLDivElement | null>(null);
-  const workOrdersListRef = useRef<HTMLDivElement | null>(null);
   const timelineListRef = useRef<HTMLDivElement | null>(null);
   const stickyMessageTimeoutRef = useRef<number | null>(null);
   const unitId = unit?.id ?? null;
@@ -1265,6 +1364,9 @@ export function DispatchDashboard() {
       setStationNotes([]);
       setOfficerNotes([]);
       setDashboardNotesMessage(null);
+      setStationMessages([]);
+      setStationMessagesMessage(null);
+      setStationMessagesStationNumber(null);
       return;
     }
 
@@ -1311,6 +1413,9 @@ export function DispatchDashboard() {
       setStationNotes([]);
       setOfficerNotes([]);
       setDashboardNotesMessage(null);
+      setStationMessages([]);
+      setStationMessagesMessage(null);
+      setStationMessagesStationNumber(null);
       return;
     }
 
@@ -1347,6 +1452,54 @@ export function DispatchDashboard() {
 
     void loadDashboardNotes();
     const intervalId = window.setInterval(loadDashboardNotes, 60000);
+
+    return () => {
+      active = false;
+      window.clearInterval(intervalId);
+    };
+  }, [unitId]);
+
+  useEffect(() => {
+    if (!unitId) {
+      setStationMessages([]);
+      setStationMessagesMessage(null);
+      setStationMessagesStationNumber(null);
+      return;
+    }
+
+    let active = true;
+
+    async function loadStationMessages() {
+      try {
+        const response = await fetch("/api/messages", {
+          cache: "no-store",
+        });
+        const data = (await response.json()) as StationMessagesResponse;
+
+        if (!active) {
+          return;
+        }
+
+        setStationMessages(Array.isArray(data.messages) ? data.messages : []);
+        setStationMessagesMessage(data.message ?? null);
+        setStationMessagesStationNumber(data.stationNumber ?? null);
+      } catch (error) {
+        if (!active) {
+          return;
+        }
+
+        setStationMessages([]);
+        setStationMessagesStationNumber(null);
+        setStationMessagesMessage(
+          error instanceof Error
+            ? error.message
+            : "Failed to load station messages.",
+        );
+      }
+    }
+
+    void loadStationMessages();
+    const intervalId = window.setInterval(loadStationMessages, 60000);
 
     return () => {
       active = false;
@@ -1624,6 +1777,8 @@ useEffect(() => {
       return;
     }
 
+    setIdleScreenIndex(0);
+
     const intervalId = window.setInterval(() => {
       setIdleScreenIndex((current) => current + 1);
     }, IDLE_ROTATION_MS);
@@ -1660,7 +1815,27 @@ useEffect(() => {
     [timelineEvents],
   );
   const totalDashboardNotes = stationNotes.length + officerNotes.length;
-  const statsUnavailable = !liveStatsAvailable;
+  const criticalStationMessages = useMemo(
+    () => stationMessages.filter((message) => message.priority === "CRITICAL"),
+    [stationMessages],
+  );
+  const pinnedStationMessages = useMemo(
+    () => stationMessages.filter((message) => message.isPinned),
+    [stationMessages],
+  );
+  const statsHaveAnyTotals =
+    totalDepartmentCalls > 0 ||
+    totalApparatusCalls > 0 ||
+    emsCalls > 0 ||
+    fireRescueCalls > 0 ||
+    rollingWindows.some(
+      (window) =>
+        window.totalDepartmentCalls > 0 ||
+        (window.totalScopedCalls ?? window.totalApparatusCalls) > 0 ||
+        window.emsCalls > 0 ||
+        window.fireRescueCalls > 0,
+    );
+  const statsUnavailable = !liveStatsAvailable && !statsHaveAnyTotals;
   const idleScreens = useMemo<IdleScreen[]>(() => {
     if (!unit) {
       return [];
@@ -1729,10 +1904,7 @@ useEffect(() => {
         ),
         content: (
           <div className="grid h-full min-h-0 gap-5 xl:grid-cols-[minmax(0,1.3fr)_minmax(320px,0.7fr)]">
-            <div
-              ref={workOrdersListRef}
-              className="min-h-0 overflow-y-auto sm:pr-3"
-            >
+            <div className="min-h-0">
               <ul className="grid gap-4">
                 {group.workOrders.length > 0 ? (
                   group.workOrders.map((order) => (
@@ -1976,7 +2148,187 @@ useEffect(() => {
           ]
         : [];
 
+    const stationMessagesScreen =
+      unit
+        ? [
+            {
+              id: "station-messages",
+              label: "Messages",
+              eyebrow:
+                criticalStationMessages.length > 0
+                  ? "Critical Messages"
+                  : stationMessages.length > 0
+                    ? "Station Messages"
+                    : "Message Center Clear",
+              title:
+                stationMessages.length > 0
+                  ? `${unit.station} Message Center`
+                  : `${unit.station} Message Center`,
+              description:
+                stationMessagesMessage ??
+                (stationMessages.length > 0
+                  ? `${stationMessages.length} active department or station message${stationMessages.length === 1 ? "" : "s"} for ${unit.station}.`
+                  : `There are no station messages to display currently for ${unit.station}.`),
+              contentVersion: `station-messages:${stationMessagesStationNumber ?? ""}:${stationMessages.map((message) => `${message.id}:${message.updatedAt}`).join("|")}:${stationMessagesMessage ?? ""}`,
+              scrollable: true,
+              backgroundStyle: {
+                background:
+                  criticalStationMessages.length > 0
+                    ? "radial-gradient(circle at 16% 18%, rgba(255,255,255,0.16), transparent 18%), radial-gradient(circle at 84% 22%, rgba(248,113,113,0.28), transparent 24%), linear-gradient(145deg, rgba(77,15,18,0.99), rgba(127,28,28,0.96) 52%, rgba(36,10,12,0.99))"
+                    : "radial-gradient(circle at 18% 16%, rgba(255,255,255,0.13), transparent 18%), radial-gradient(circle at 82% 20%, rgba(88,166,255,0.18), transparent 22%), linear-gradient(145deg, rgba(18,35,64,0.99), rgba(29,63,100,0.96) 54%, rgba(12,25,43,0.99))",
+              },
+              artwork: (
+                <div className="pointer-events-none absolute inset-0 overflow-hidden">
+                  <div className="absolute right-12 top-16 h-72 w-72 rounded-full border border-white/8" />
+                  <div className="absolute right-28 top-32 h-40 w-40 rounded-full border border-white/8" />
+                  <div className="absolute bottom-14 left-10 h-56 w-[30rem] rotate-[-8deg] rounded-[2rem] border border-white/7 bg-white/4" />
+                  <div className="absolute left-14 top-24 h-px w-[30rem] bg-white/8" />
+                  <div className="absolute left-14 top-40 h-px w-[20rem] bg-white/8" />
+                </div>
+              ),
+              content: (
+                <div className="grid min-h-0 gap-5 xl:grid-cols-[300px_minmax(0,1fr)]">
+                  <aside className="self-start rounded-[2rem] border border-white/14 bg-white/8 px-5 py-6 sm:px-7 sm:py-8">
+                    <p className="font-mono text-xs uppercase tracking-[0.34em] text-white/58">
+                      Shared Message Feed
+                    </p>
+                    <p className="mt-4 text-[3rem] font-semibold tracking-normal text-white sm:text-[4.6rem]">
+                      {stationMessages.length}
+                    </p>
+                    <p className="mt-2 text-lg text-white/72">
+                      {stationMessages.length === 1 ? "Active message" : "Active messages"}
+                    </p>
+                    <div className="mt-7 grid gap-4">
+                      <div className="rounded-[1.4rem] border border-red-200/20 bg-red-400/10 px-4 py-4">
+                        <p className="font-mono text-xs uppercase tracking-[0.24em] text-red-50/64">
+                          Critical
+                        </p>
+                        <p className="mt-2 text-[2rem] font-semibold text-white">
+                          {criticalStationMessages.length}
+                        </p>
+                      </div>
+                      <div className="rounded-[1.4rem] border border-amber-200/20 bg-amber-300/10 px-4 py-4">
+                        <p className="font-mono text-xs uppercase tracking-[0.24em] text-amber-50/64">
+                          Pinned
+                        </p>
+                        <p className="mt-2 text-[2rem] font-semibold text-white">
+                          {pinnedStationMessages.length}
+                        </p>
+                      </div>
+                      <div className="rounded-[1.4rem] border border-white/12 bg-black/14 px-4 py-4">
+                        <p className="font-mono text-xs uppercase tracking-[0.24em] text-white/54">
+                          Scope
+                        </p>
+                        <p className="mt-2 text-[1.35rem] font-medium text-white">
+                          Station {stationMessagesStationNumber ?? (unit.station.replace(/\D+/g, "") || "")}
+                        </p>
+                      </div>
+                    </div>
+                    <p className="mt-7 text-sm leading-7 text-white/58 sm:text-base sm:leading-8">
+                      {stationMessagesMessage ??
+                        (stationMessages.length > 0
+                          ? "Closing or rotating this screen does not mark messages read for any member. Policy items show links only."
+                          : "This station screen stays in the rotation so the message center is visible even when the shared feed is clear.")}
+                    </p>
+                  </aside>
+                  <div className="grid content-start gap-4">
+                    {stationMessages.length === 0 ? (
+                      <article className="rounded-[2rem] border border-emerald-200/22 bg-emerald-300/10 px-5 py-8 text-white sm:px-7 sm:py-10">
+                        <p className="font-mono text-xs uppercase tracking-[0.28em] text-emerald-50/68">
+                          No Messages To Display
+                        </p>
+                        <p className="mt-4 text-[1.75rem] font-semibold leading-tight sm:text-[2.6rem]">
+                          There are no station messages to display currently.
+                        </p>
+                        <p className="mt-4 max-w-3xl text-[1.1rem] leading-8 text-white/70 sm:text-[1.45rem] sm:leading-9">
+                          New critical banners, high-priority cards, important notices, and informational updates will appear here from the shared Message Center.
+                        </p>
+                      </article>
+                    ) : stationMessages.map((message, index) => {
+                      const isCritical = message.priority === "CRITICAL";
+                      const isPolicy = message.type === "POLICY_LINK";
+                      const displaySummary =
+                        message.dashboardDisplay?.summary ||
+                        message.body ||
+                        "No additional details were provided.";
+
+                      return (
+                        <article
+                          key={message.id}
+                          className={`rounded-[2rem] border px-5 py-5 sm:px-7 sm:py-7 ${priorityClasses(message.priority)} ${
+                            isCritical ? "animate-pulse" : ""
+                          }`}
+                        >
+                          <div className="flex flex-col gap-5 lg:flex-row lg:items-start lg:justify-between">
+                            <div className="flex min-w-0 gap-4">
+                              <div className="flex h-14 w-14 shrink-0 items-center justify-center rounded-2xl border border-white/14 bg-white/10 text-3xl sm:h-16 sm:w-16 sm:text-4xl">
+                                {messageTypeIcon(message.type, message.priority)}
+                              </div>
+                              <div className="min-w-0">
+                                <div className="flex flex-wrap items-center gap-2">
+                                  <p className="text-[1.55rem] font-semibold leading-tight text-white sm:text-[2.4rem]">
+                                    {message.title}
+                                  </p>
+                                  {message.isPinned ? (
+                                    <span className="rounded-full border border-amber-200/30 bg-amber-300/14 px-3 py-1 font-mono text-[10px] uppercase tracking-[0.22em] text-amber-50">
+                                      Pinned
+                                    </span>
+                                  ) : null}
+                                  {isCritical ? (
+                                    <span className="rounded-full border border-red-100/45 bg-red-500/24 px-3 py-1 font-mono text-[10px] uppercase tracking-[0.22em] text-red-50">
+                                      {priorityLabel(message.priority)}
+                                    </span>
+                                  ) : null}
+                                </div>
+                                <div className="mt-3 flex flex-wrap items-center gap-2 font-mono text-xs uppercase tracking-[0.22em] text-white/54">
+                                  <span>{messageTypeLabel(message.type)}</span>
+                                  <span>/</span>
+                                  <span>{priorityLabel(message.priority)}</span>
+                                  <span>/</span>
+                                  <span>{message.stationLabel ?? "Department"}</span>
+                                  <span>/</span>
+                                  <span>{formatDashboardTimestamp(message.createdAt) ?? `Message ${index + 1}`}</span>
+                                </div>
+                              </div>
+                            </div>
+                            <div className="shrink-0 text-left lg:text-right">
+                              {message.expiresAt ? (
+                                <p className="font-mono text-xs uppercase tracking-[0.22em] text-white/48">
+                                  Expires {formatDashboardTimestamp(message.expiresAt)}
+                                </p>
+                              ) : null}
+                              {message.linkUrl ? (
+                                <a
+                                  href={message.linkUrl}
+                                  target="_blank"
+                                  rel="noreferrer"
+                                  className="mt-3 inline-flex rounded-full border border-white/18 bg-white/10 px-4 py-2 text-sm font-semibold text-white/82"
+                                >
+                                  {message.linkLabel ?? (isPolicy ? "View Policy" : "Open Link")}
+                                </a>
+                              ) : null}
+                            </div>
+                          </div>
+                          <p className="mt-5 whitespace-pre-wrap text-[1.15rem] leading-8 text-white/82 sm:text-[1.55rem] sm:leading-10">
+                            {displaySummary}
+                          </p>
+                          {isPolicy ? (
+                            <p className="mt-5 rounded-[1.2rem] border border-white/12 bg-black/14 px-4 py-3 font-mono text-xs uppercase tracking-[0.22em] text-white/58">
+                              Policy acknowledgement remains in the member portal or app document workflow.
+                            </p>
+                          ) : null}
+                        </article>
+                      );
+                    })}
+                  </div>
+                </div>
+              ),
+            },
+          ]
+        : [];
+
     return [
+      ...stationMessagesScreen,
       ...workOrderScreens,
       ...dashboardNotesScreen,
       {
@@ -2476,6 +2828,11 @@ useEffect(() => {
     stationNotes,
     officerNotes,
     dashboardNotesMessage,
+    stationMessages,
+    stationMessagesMessage,
+    stationMessagesStationNumber,
+    criticalStationMessages,
+    pinnedStationMessages,
     statsMessage,
     statsSourceLabel,
     statsYear,
@@ -2494,8 +2851,20 @@ useEffect(() => {
     workOrdersMessage,
     totalDashboardNotes,
   ]);
+  const stationMessageIdleScreen =
+    idleScreens.find((screen) => screen.id === "station-messages") ?? null;
+  const nonMessageIdleScreens = idleScreens.filter(
+    (screen) => screen.id !== "station-messages",
+  );
   const currentIdleScreen =
-    idleScreens[idleScreenIndex % Math.max(idleScreens.length, 1)] ?? null;
+    stationMessageIdleScreen && idleScreenIndex % 2 === 0
+      ? stationMessageIdleScreen
+      : nonMessageIdleScreens[
+          Math.floor(idleScreenIndex / 2) %
+            Math.max(nonMessageIdleScreens.length, 1)
+        ] ??
+        stationMessageIdleScreen ??
+        null;
   const showIdleFeedStatus = Boolean(
     unitId && staleFeedMessage && currentIdleScreen?.id === "health",
   );
@@ -2510,9 +2879,7 @@ useEffect(() => {
       return;
     }
 
-    const scrollContainer = currentIdleScreen.id.startsWith("work-orders:")
-      ? (workOrdersListRef.current ?? container)
-      : container;
+    const scrollContainer = container;
 
     scrollContainer.scrollTo({ top: 0, behavior: "auto" });
 
