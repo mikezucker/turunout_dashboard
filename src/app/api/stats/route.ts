@@ -5,6 +5,7 @@ import {
   readSessionToken,
   sessionCookieName,
 } from "@/lib/unit-session";
+import { fetchDispatchStats } from "@/lib/stats";
 
 export const dynamic = "force-dynamic";
 
@@ -48,45 +49,6 @@ function dashboardApiToken() {
   );
 }
 
-function emptyStatsResponse(message: string, status = 200) {
-  const year = new Date().getFullYear();
-
-  return NextResponse.json(
-    {
-      ok: false,
-      message,
-      sourceLabel: "MTFD Site dispatch stats",
-      year,
-      liveTotalsAvailable: true,
-      statsDegraded: true,
-      totalDepartmentCalls: 0,
-      totalApparatusCalls: 0,
-      totalScopedCalls: 0,
-      emsCalls: 0,
-      fireRescueCalls: 0,
-      rollingWindows: [
-        emptyWindow("Last 24 Hours", 1),
-        emptyWindow("Last 7 Days", 7),
-        emptyWindow("Last 30 Days", 30),
-      ],
-    },
-    { status },
-  );
-}
-
-function emptyWindow(label: string, days: number) {
-  return {
-    label,
-    days,
-    totalDepartmentCalls: 0,
-    totalApparatusCalls: 0,
-    totalScopedCalls: 0,
-    emsCalls: 0,
-    fireRescueCalls: 0,
-    sourceLabel: "MTFD Site dispatch stats",
-  };
-}
-
 function rollingWindow(
   label: string,
   days: number,
@@ -115,6 +77,27 @@ function rollingWindow(
   };
 }
 
+async function localStatsResponse(unit: NonNullable<ReturnType<typeof getUnitProfile>>, messagePrefix: string) {
+  const stats = await fetchDispatchStats(unit);
+  const fallbackMessage = stats.ok
+    ? `Shared stats feed unavailable (${messagePrefix}); using Turnout dispatch stats.`
+    : [messagePrefix, stats.message].filter(Boolean).join(" ");
+
+  return NextResponse.json({
+    ...stats,
+    ok: stats.ok,
+    message: fallbackMessage,
+    sourceLabel: stats.sourceLabel ?? "Turnout dispatch stats",
+    statsDegraded: !stats.ok,
+    totalScopedCalls: stats.totalApparatusCalls,
+    rollingWindows: stats.rollingWindows.map((window) => ({
+      ...window,
+      totalScopedCalls: window.totalApparatusCalls,
+    })),
+    lastUpdated: new Date().toISOString(),
+  });
+}
+
 export async function GET() {
   const cookieStore = await cookies();
   const token = cookieStore.get(sessionCookieName())?.value;
@@ -139,7 +122,7 @@ export async function GET() {
   const apiToken = dashboardApiToken();
 
   if (!apiToken) {
-    return emptyStatsResponse("Dashboard stats feed is not configured.", 503);
+    return localStatsResponse(unit, "Dashboard stats feed is not configured.");
   }
 
   const requestUrl = new URL("/api/shared/dispatch-stats", MTFD_SITE_BASE_URL);
@@ -162,12 +145,12 @@ export async function GET() {
       | null;
 
     if (!response.ok || !payload) {
-      return emptyStatsResponse(
+      const message =
         payload?.error ??
-          payload?.message ??
-          `MTFD Site dispatch stats returned HTTP ${response.status}.`,
-        200,
-      );
+        payload?.message ??
+        `MTFD Site dispatch stats returned HTTP ${response.status}.`;
+
+      return localStatsResponse(unit, message);
     }
 
     const department = payload.department;
@@ -202,9 +185,9 @@ export async function GET() {
       lastUpdated: payload.lastUpdated ?? null,
     });
   } catch (error) {
-    return emptyStatsResponse(
+    return localStatsResponse(
+      unit,
       error instanceof Error ? error.message : "Failed to load dispatch stats.",
-      200,
     );
   }
 }

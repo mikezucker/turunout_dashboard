@@ -1752,6 +1752,8 @@ useEffect(() => {
       return;
     }
 
+    setIdleScreenIndex(0);
+
     const intervalId = window.setInterval(() => {
       setIdleScreenIndex((current) => current + 1);
     }, IDLE_ROTATION_MS);
@@ -2303,7 +2305,6 @@ useEffect(() => {
     return [
       ...stationMessagesScreen,
       ...workOrderScreens,
-      ...stationMessagesScreen,
       ...dashboardNotesScreen,
       {
         id: "weather",
@@ -2825,8 +2826,20 @@ useEffect(() => {
     workOrdersMessage,
     totalDashboardNotes,
   ]);
+  const stationMessageIdleScreen =
+    idleScreens.find((screen) => screen.id === "station-messages") ?? null;
+  const nonMessageIdleScreens = idleScreens.filter(
+    (screen) => screen.id !== "station-messages",
+  );
   const currentIdleScreen =
-    idleScreens[idleScreenIndex % Math.max(idleScreens.length, 1)] ?? null;
+    stationMessageIdleScreen && idleScreenIndex % 2 === 0
+      ? stationMessageIdleScreen
+      : nonMessageIdleScreens[
+          Math.floor(idleScreenIndex / 2) %
+            Math.max(nonMessageIdleScreens.length, 1)
+        ] ??
+        stationMessageIdleScreen ??
+        null;
   const showIdleFeedStatus = Boolean(
     unitId && staleFeedMessage && currentIdleScreen?.id === "health",
   );
