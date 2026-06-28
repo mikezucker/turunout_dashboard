@@ -53,7 +53,8 @@ function emptyStatsResponse(message: string, status = 200) {
       message,
       sourceLabel: "MTFD Site dispatch stats",
       year,
-      liveTotalsAvailable: false,
+      liveTotalsAvailable: true,
+      statsDegraded: true,
       totalDepartmentCalls: 0,
       totalApparatusCalls: 0,
       totalScopedCalls: 0,
@@ -139,6 +140,10 @@ export async function GET() {
 
   const requestUrl = new URL("/api/shared/dispatch-stats", MTFD_SITE_BASE_URL);
   requestUrl.searchParams.set("station", unit.station);
+  const stationNumber = unit.station.match(/\b([1-5])\b/)?.[1] ?? null;
+  if (stationNumber) {
+    requestUrl.searchParams.set("stationNumber", stationNumber);
+  }
 
   try {
     const response = await fetch(requestUrl, {
@@ -157,7 +162,7 @@ export async function GET() {
         payload?.error ??
           payload?.message ??
           `MTFD Site dispatch stats returned HTTP ${response.status}.`,
-        response.ok ? 200 : response.status,
+        200,
       );
     }
 
@@ -173,7 +178,13 @@ export async function GET() {
       message: payload.message ?? null,
       sourceLabel: payload.sourceLabel ?? "MTFD Site dispatch stats",
       year,
-      liveTotalsAvailable: payload.ok === true,
+      liveTotalsAvailable:
+        payload.ok === true ||
+        totalDepartmentCalls > 0 ||
+        totalScopedCalls > 0 ||
+        (station?.fireYtd ?? 0) > 0 ||
+        (station?.emsYtd ?? 0) > 0,
+      statsDegraded: payload.ok !== true,
       totalDepartmentCalls,
       totalApparatusCalls: totalScopedCalls,
       totalScopedCalls,

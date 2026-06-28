@@ -805,11 +805,33 @@ function priorityClasses(priority: string) {
     return "border-red-200/55 bg-red-500/26 text-red-50 shadow-[0_0_42px_rgba(248,113,113,0.18)]";
   }
 
-  if (priority === "HIGH") {
+  if (priority === "HIGH" || priority === "HIGH_PRIORITY") {
     return "border-amber-200/36 bg-amber-300/14 text-amber-50";
   }
 
+  if (priority === "NORMAL" || priority === "IMPORTANT") {
+    return "border-sky-200/24 bg-sky-300/10 text-sky-50";
+  }
+
   return "border-white/12 bg-white/7 text-white";
+}
+
+function priorityLabel(priority: string) {
+  switch (priority) {
+    case "LOW":
+    case "INFORMATION":
+      return "Information";
+    case "NORMAL":
+    case "IMPORTANT":
+      return "Important";
+    case "HIGH":
+    case "HIGH_PRIORITY":
+      return "High Priority";
+    case "CRITICAL":
+      return "Critical";
+    default:
+      return messageTypeLabel(priority);
+  }
 }
 
 function UnitBrandBlock({ unit }: { unit: SerializedUnitProfile }) {
@@ -2092,7 +2114,7 @@ useEffect(() => {
         : [];
 
     const stationMessagesScreen =
-      stationMessages.length > 0
+      unit
         ? [
             {
               id: "station-messages",
@@ -2100,11 +2122,18 @@ useEffect(() => {
               eyebrow:
                 criticalStationMessages.length > 0
                   ? "Critical Messages"
-                  : "Station Messages",
-              title: `${unit.station} Message Center`,
+                  : stationMessages.length > 0
+                    ? "Station Messages"
+                    : "Message Center Clear",
+              title:
+                stationMessages.length > 0
+                  ? `${unit.station} Message Center`
+                  : `No Active Messages for ${unit.station}`,
               description:
                 stationMessagesMessage ??
-                `${stationMessages.length} active department or station message${stationMessages.length === 1 ? "" : "s"} for ${unit.station}.`,
+                (stationMessages.length > 0
+                  ? `${stationMessages.length} active department or station message${stationMessages.length === 1 ? "" : "s"} for ${unit.station}.`
+                  : "Department and station messages from the shared member backend will appear here when posted."),
               contentVersion: `station-messages:${stationMessagesStationNumber ?? ""}:${stationMessages.map((message) => `${message.id}:${message.updatedAt}`).join("|")}:${stationMessagesMessage ?? ""}`,
               scrollable: true,
               backgroundStyle: {
@@ -2132,7 +2161,7 @@ useEffect(() => {
                       {stationMessages.length}
                     </p>
                     <p className="mt-2 text-lg text-white/72">
-                      Active messages
+                      {stationMessages.length === 1 ? "Active message" : "Active messages"}
                     </p>
                     <div className="mt-7 grid gap-4">
                       <div className="rounded-[1.4rem] border border-red-200/20 bg-red-400/10 px-4 py-4">
@@ -2161,11 +2190,24 @@ useEffect(() => {
                       </div>
                     </div>
                     <p className="mt-7 text-sm leading-7 text-white/58 sm:text-base sm:leading-8">
-                      Closing or rotating this screen does not mark messages read for any member. Policy items show links only.
+                      {stationMessagesMessage ??
+                        "Closing or rotating this screen does not mark messages read for any member. Policy items show links only."}
                     </p>
                   </aside>
                   <div className="grid content-start gap-4">
-                    {stationMessages.map((message, index) => {
+                    {stationMessages.length === 0 ? (
+                      <article className="rounded-[2rem] border border-emerald-200/22 bg-emerald-300/10 px-5 py-8 text-white sm:px-7 sm:py-10">
+                        <p className="font-mono text-xs uppercase tracking-[0.28em] text-emerald-50/68">
+                          No Active Station Messages
+                        </p>
+                        <p className="mt-4 text-[1.75rem] font-semibold leading-tight sm:text-[2.6rem]">
+                          The station message board is clear.
+                        </p>
+                        <p className="mt-4 max-w-3xl text-[1.1rem] leading-8 text-white/70 sm:text-[1.45rem] sm:leading-9">
+                          Critical banners, high-priority cards, important notices, and informational updates will rotate here when posted from the shared Message Center.
+                        </p>
+                      </article>
+                    ) : stationMessages.map((message, index) => {
                       const isCritical = message.priority === "CRITICAL";
                       const isPolicy = message.type === "POLICY_LINK";
                       const displaySummary =
@@ -2197,12 +2239,14 @@ useEffect(() => {
                                   ) : null}
                                   {isCritical ? (
                                     <span className="rounded-full border border-red-100/45 bg-red-500/24 px-3 py-1 font-mono text-[10px] uppercase tracking-[0.22em] text-red-50">
-                                      Critical
+                                      {priorityLabel(message.priority)}
                                     </span>
                                   ) : null}
                                 </div>
                                 <div className="mt-3 flex flex-wrap items-center gap-2 font-mono text-xs uppercase tracking-[0.22em] text-white/54">
                                   <span>{messageTypeLabel(message.type)}</span>
+                                  <span>/</span>
+                                  <span>{priorityLabel(message.priority)}</span>
                                   <span>/</span>
                                   <span>{message.stationLabel ?? "Department"}</span>
                                   <span>/</span>
