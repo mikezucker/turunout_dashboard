@@ -1,10 +1,12 @@
 import { cookies } from "next/headers";
 import { NextResponse } from "next/server";
+import { loadEnvConfig } from "@next/env";
 import {
   getUnitProfile,
   readSessionToken,
   sessionCookieName,
 } from "@/lib/unit-session";
+import { normalizeEnvValue } from "@/lib/firstdue-env";
 
 export const dynamic = "force-dynamic";
 
@@ -72,10 +74,19 @@ const lastGoodStatsByUnit = new Map<
   }
 >();
 
+let envLoaded = false;
+
+function ensureServerEnvLoaded() {
+  if (envLoaded) return;
+  loadEnvConfig(process.cwd());
+  envLoaded = true;
+}
+
 function dashboardApiToken() {
+  ensureServerEnvLoaded();
   return (
-    process.env.DASHBOARD_API_TOKEN?.trim() ||
-    process.env.DISPATCH_MOBILE_API_TOKEN?.trim() ||
+    normalizeEnvValue(process.env.DASHBOARD_API_TOKEN) ||
+    normalizeEnvValue(process.env.DISPATCH_MOBILE_API_TOKEN) ||
     null
   );
 }
