@@ -887,7 +887,7 @@ function DepartmentLogo({
         width={224}
         height={224}
         unoptimized
-        className={`object-contain drop-shadow-[0_12px_28px_rgba(0,0,0,0.28)] ${
+        className={`rounded-full object-contain drop-shadow-[0_12px_28px_rgba(0,0,0,0.28)] ${
           compact
             ? "h-20 w-20 sm:h-24 sm:w-24 2xl:h-40 2xl:w-40"
             : "h-24 w-24 sm:h-32 sm:w-32 xl:h-52 xl:w-52 2xl:h-56 2xl:w-56"
