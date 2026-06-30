@@ -5,7 +5,6 @@ import {
   readSessionToken,
   sessionCookieName,
 } from "@/lib/unit-session";
-import { fetchDispatchStats } from "@/lib/stats";
 
 export const dynamic = "force-dynamic";
 
@@ -196,29 +195,6 @@ function sharedStatsPayload(payload: SharedDispatchStatsResponse): TurnoutStatsR
   };
 }
 
-function localStatsPayload(
-  stats: Awaited<ReturnType<typeof fetchDispatchStats>>,
-  fallbackReason: string | null,
-): TurnoutStatsResponse {
-  return {
-    ok: stats.ok,
-    message: joinMessages(fallbackReason, stats.message),
-    sourceLabel: stats.sourceLabel ?? "Turnout local FirstDue stats",
-    year: stats.year,
-    liveTotalsAvailable: stats.liveTotalsAvailable,
-    totalDepartmentCalls: stats.totalDepartmentCalls,
-    totalApparatusCalls: stats.totalApparatusCalls,
-    totalScopedCalls: stats.totalApparatusCalls,
-    emsCalls: stats.emsCalls,
-    fireRescueCalls: stats.fireRescueCalls,
-    rollingWindows: stats.rollingWindows.map((window) => ({
-      ...window,
-      totalScopedCalls: window.totalApparatusCalls,
-    })),
-    lastUpdated: new Date().toISOString(),
-  };
-}
-
 function hasUsableTotals(stats: TurnoutStatsResponse) {
   return (
     stats.totalDepartmentCalls > 0 ||
@@ -259,24 +235,6 @@ function cachedStats(unitId: string, reason: string) {
   };
 }
 
-async function loadLocalStats(
-  unitId: string,
-  unit: NonNullable<ReturnType<typeof getUnitProfile>>,
-  reason: string,
-) {
-  try {
-    const localStats = localStatsPayload(await fetchDispatchStats(unit), reason);
-    rememberStats(unitId, localStats);
-    return localStats;
-  } catch (error) {
-    const message = joinMessages(
-      reason,
-      error instanceof Error ? error.message : "Local stats fallback failed.",
-    );
-    return cachedStats(unitId, message ?? "Stats unavailable.") ?? emptyStatsPayload(message ?? "Stats unavailable.");
-  }
-}
-
 export async function GET() {
   const cookieStore = await cookies();
   const token = cookieStore.get(sessionCookieName())?.value;
@@ -310,12 +268,10 @@ export async function GET() {
   }
 
   if (!apiToken) {
-    const fallback = await loadLocalStats(
-      unitId,
-      unit,
-      "Shared stats token is not configured; using local fallback.",
+    const message = "Shared stats token is not configured.";
+    return NextResponse.json(
+      cachedStats(unitId, message) ?? emptyStatsPayload(message),
     );
-    return NextResponse.json(fallback);
   }
 
   try {
@@ -335,12 +291,9 @@ export async function GET() {
         payload?.error ??
           payload?.message ??
           `MTFD Site dispatch stats returned HTTP ${response.status}.`;
-      const fallback = await loadLocalStats(
-        unitId,
-        unit,
-        `${reason} Using local fallback.`,
+      return NextResponse.json(
+        cachedStats(unitId, reason) ?? emptyStatsPayload(reason),
       );
-      return NextResponse.json(fallback);
     }
 
     const stats = sharedStatsPayload(payload);
@@ -349,11 +302,8 @@ export async function GET() {
   } catch (error) {
     const reason =
       error instanceof Error ? error.message : "Failed to load shared dispatch stats.";
-    const fallback = await loadLocalStats(
-      unitId,
-      unit,
-      `${reason} Using local fallback.`,
+    return NextResponse.json(
+      cachedStats(unitId, reason) ?? emptyStatsPayload(reason),
     );
-    return NextResponse.json(fallback);
   }
 }
