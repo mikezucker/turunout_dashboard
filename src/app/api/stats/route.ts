@@ -1,6 +1,5 @@
 import { cookies } from "next/headers";
 import { NextResponse } from "next/server";
-import { loadEnvConfig } from "@next/env";
 import {
   getUnitProfile,
   readSessionToken,
@@ -74,21 +73,13 @@ const lastGoodStatsByUnit = new Map<
   }
 >();
 
-let envLoaded = false;
-
-function ensureServerEnvLoaded() {
-  if (envLoaded) return;
-  loadEnvConfig(process.cwd());
-  envLoaded = true;
-}
-
-function dashboardApiToken() {
-  ensureServerEnvLoaded();
-  return (
-    normalizeEnvValue(process.env.DASHBOARD_API_TOKEN) ||
-    normalizeEnvValue(process.env.DISPATCH_MOBILE_API_TOKEN) ||
-    null
-  );
+function dashboardApiTokens() {
+  return [
+    normalizeEnvValue(process.env.DISPATCH_MOBILE_API_TOKEN),
+    normalizeEnvValue(process.env.DASHBOARD_API_TOKEN),
+  ].filter((token, index, tokens): token is string => {
+    return Boolean(token) && tokens.indexOf(token) === index;
+  });
 }
 
 function numberOrZero(value: unknown) {
@@ -267,7 +258,7 @@ export async function GET() {
     );
   }
 
-  const apiToken = dashboardApiToken();
+  const apiTokens = dashboardApiTokens();
 
   const requestUrl = new URL("/api/shared/dispatch-stats", MTFD_SITE_BASE_URL);
   const stationNumber = stationNumberFromLabel(unit.station);
@@ -278,7 +269,7 @@ export async function GET() {
     requestUrl.searchParams.set("station", unit.station);
   }
 
-  if (!apiToken) {
+  if (apiTokens.length === 0) {
     const message = "Shared stats token is not configured.";
     return NextResponse.json(
       cachedStats(unitId, message) ?? emptyStatsPayload(message),
@@ -286,30 +277,40 @@ export async function GET() {
   }
 
   try {
-    const response = await fetch(requestUrl, {
-      cache: "no-store",
-      headers: {
-        Authorization: `Bearer ${apiToken}`,
-      },
-      signal: AbortSignal.timeout(15_000),
-    });
-    const payload = (await response.json().catch(() => null)) as
-      | SharedDispatchStatsResponse
-      | null;
+    let lastFailureReason: string | null = null;
 
-    if (!response.ok || !payload) {
-      const reason =
+    for (const apiToken of apiTokens) {
+      const response = await fetch(requestUrl, {
+        cache: "no-store",
+        headers: {
+          Authorization: `Bearer ${apiToken}`,
+        },
+        signal: AbortSignal.timeout(15_000),
+      });
+      const payload = (await response.json().catch(() => null)) as
+        | SharedDispatchStatsResponse
+        | null;
+
+      if (response.ok && payload) {
+        const stats = sharedStatsPayload(payload);
+        rememberStats(unitId, stats);
+        return NextResponse.json(stats);
+      }
+
+      lastFailureReason =
         payload?.error ??
           payload?.message ??
           `MTFD Site dispatch stats returned HTTP ${response.status}.`;
-      return NextResponse.json(
-        cachedStats(unitId, reason) ?? emptyStatsPayload(reason),
-      );
+
+      if (response.status !== 401 && response.status !== 403) {
+        break;
+      }
     }
 
-    const stats = sharedStatsPayload(payload);
-    rememberStats(unitId, stats);
-    return NextResponse.json(stats);
+    const reason = lastFailureReason ?? "Failed to load shared dispatch stats.";
+    return NextResponse.json(
+      cachedStats(unitId, reason) ?? emptyStatsPayload(reason),
+    );
   } catch (error) {
     const reason =
       error instanceof Error ? error.message : "Failed to load shared dispatch stats.";
