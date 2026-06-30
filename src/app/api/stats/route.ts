@@ -65,6 +65,7 @@ type TurnoutStatsResponse = {
 const MTFD_SITE_BASE_URL =
   process.env.MTFD_SITE_BASE_URL ?? "https://new-mtfd-site.vercel.app";
 const LAST_GOOD_STATS_TTL_MS = 30 * 60 * 1000;
+const SHARED_STATS_TIMEOUT_MS = 45_000;
 const lastGoodStatsByUnit = new Map<
   string,
   {
@@ -285,7 +286,7 @@ export async function GET() {
         headers: {
           Authorization: `Bearer ${apiToken}`,
         },
-        signal: AbortSignal.timeout(15_000),
+        signal: AbortSignal.timeout(SHARED_STATS_TIMEOUT_MS),
       });
       const payload = (await response.json().catch(() => null)) as
         | SharedDispatchStatsResponse
