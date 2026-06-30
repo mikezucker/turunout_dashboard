@@ -2851,20 +2851,10 @@ useEffect(() => {
     workOrdersMessage,
     totalDashboardNotes,
   ]);
-  const stationMessageIdleScreen =
-    idleScreens.find((screen) => screen.id === "station-messages") ?? null;
-  const nonMessageIdleScreens = idleScreens.filter(
-    (screen) => screen.id !== "station-messages",
-  );
   const currentIdleScreen =
-    stationMessageIdleScreen && idleScreenIndex % 2 === 0
-      ? stationMessageIdleScreen
-      : nonMessageIdleScreens[
-          Math.floor(idleScreenIndex / 2) %
-            Math.max(nonMessageIdleScreens.length, 1)
-        ] ??
-        stationMessageIdleScreen ??
-        null;
+    idleScreens.length > 0
+      ? idleScreens[idleScreenIndex % idleScreens.length]
+      : null;
   const showIdleFeedStatus = Boolean(
     unitId && staleFeedMessage && currentIdleScreen?.id === "health",
   );
