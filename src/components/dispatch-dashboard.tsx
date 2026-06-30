@@ -882,8 +882,8 @@ function DepartmentLogo({
   return (
     <div className="flex items-center gap-3 sm:gap-4">
       <Image
-        src="/branding/mtfd-logo.svg"
-        alt="Morris Township Fire Department logo"
+        src="/branding/mtfd-app-icon.png"
+        alt="Morris Township Fire Department app logo"
         width={224}
         height={224}
         unoptimized
