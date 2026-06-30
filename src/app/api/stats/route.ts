@@ -5,6 +5,7 @@ import {
   readSessionToken,
   sessionCookieName,
 } from "@/lib/unit-session";
+import { fetchDispatchStats } from "@/lib/stats";
 
 export const dynamic = "force-dynamic";
 
@@ -37,36 +38,76 @@ type SharedDispatchStatsResponse = {
   error?: string;
 };
 
+type TurnoutStatsResponse = {
+  ok: boolean;
+  message: string | null;
+  sourceLabel: string | null;
+  year: number;
+  liveTotalsAvailable: boolean;
+  totalDepartmentCalls: number;
+  totalApparatusCalls: number;
+  totalScopedCalls: number;
+  emsCalls: number;
+  fireRescueCalls: number;
+  rollingWindows: Array<{
+    label: string;
+    days: number;
+    totalDepartmentCalls: number;
+    totalApparatusCalls: number;
+    totalScopedCalls: number;
+    emsCalls: number;
+    fireRescueCalls: number;
+    sourceLabel: string | null;
+  }>;
+  lastUpdated?: string | null;
+};
+
 const MTFD_SITE_BASE_URL =
   process.env.MTFD_SITE_BASE_URL ?? "https://new-mtfd-site.vercel.app";
+const LAST_GOOD_STATS_TTL_MS = 30 * 60 * 1000;
+const lastGoodStatsByUnit = new Map<
+  string,
+  {
+    value: TurnoutStatsResponse;
+    updatedAt: number;
+  }
+>();
 
 function dashboardApiToken() {
-  return process.env.DASHBOARD_API_TOKEN?.trim() || null;
+  return (
+    process.env.DASHBOARD_API_TOKEN?.trim() ||
+    process.env.DISPATCH_MOBILE_API_TOKEN?.trim() ||
+    null
+  );
 }
 
-function emptyStatsResponse(message: string, status = 200) {
-  const year = new Date().getFullYear();
+function numberOrZero(value: unknown) {
+  return typeof value === "number" && Number.isFinite(value) ? value : 0;
+}
 
-  return NextResponse.json(
-    {
-      ok: false,
-      message,
-      sourceLabel: "MTFD Site dispatch stats",
-      year,
-      liveTotalsAvailable: false,
-      totalDepartmentCalls: 0,
-      totalApparatusCalls: 0,
-      totalScopedCalls: 0,
-      emsCalls: 0,
-      fireRescueCalls: 0,
-      rollingWindows: [
-        emptyWindow("Last 24 Hours", 1),
-        emptyWindow("Last 7 Days", 7),
-        emptyWindow("Last 30 Days", 30),
-      ],
-    },
-    { status },
-  );
+function stationNumberFromLabel(station: string | null | undefined) {
+  const match = station?.match(/\bstation\s*([1-5])\b/i);
+  return match ? match[1] : null;
+}
+
+function emptyStatsPayload(message: string): TurnoutStatsResponse {
+  return {
+    ok: false,
+    message,
+    sourceLabel: "MTFD Site dispatch stats",
+    year: new Date().getFullYear(),
+    liveTotalsAvailable: false,
+    totalDepartmentCalls: 0,
+    totalApparatusCalls: 0,
+    totalScopedCalls: 0,
+    emsCalls: 0,
+    fireRescueCalls: 0,
+    rollingWindows: [
+      emptyWindow("Last 24 Hours", 1),
+      emptyWindow("Last 7 Days", 7),
+      emptyWindow("Last 30 Days", 30),
+    ],
+  };
 }
 
 function emptyWindow(label: string, days: number) {
@@ -82,6 +123,14 @@ function emptyWindow(label: string, days: number) {
   };
 }
 
+function joinMessages(...parts: Array<string | null | undefined>) {
+  const messages = parts.filter(
+    (part): part is string => typeof part === "string" && part.trim().length > 0,
+  );
+
+  return messages.length > 0 ? messages.join(" ") : null;
+}
+
 function rollingWindow(
   label: string,
   days: number,
@@ -95,8 +144,12 @@ function rollingWindow(
         ? "7d"
         : "30d";
 
-  const totalDepartmentCalls = department?.[`total${key}` as keyof DispatchBucket] ?? 0;
-  const totalScopedCalls = station?.[`total${key}` as keyof DispatchBucket] ?? 0;
+  const totalDepartmentCalls = numberOrZero(
+    department?.[`total${key}` as keyof DispatchBucket],
+  );
+  const totalScopedCalls = numberOrZero(
+    station?.[`total${key}` as keyof DispatchBucket],
+  );
 
   return {
     label,
@@ -104,10 +157,124 @@ function rollingWindow(
     totalDepartmentCalls,
     totalApparatusCalls: totalScopedCalls,
     totalScopedCalls,
-    emsCalls: station?.[`ems${key}` as keyof DispatchBucket] ?? 0,
-    fireRescueCalls: station?.[`fire${key}` as keyof DispatchBucket] ?? 0,
+    emsCalls: numberOrZero(station?.[`ems${key}` as keyof DispatchBucket]),
+    fireRescueCalls: numberOrZero(
+      station?.[`fire${key}` as keyof DispatchBucket],
+    ),
     sourceLabel: "MTFD Site dispatch stats",
   };
+}
+
+function sharedStatsPayload(payload: SharedDispatchStatsResponse): TurnoutStatsResponse {
+  const department = payload.department;
+  const station = payload.station;
+  const year = new Date().getFullYear();
+  const totalDepartmentCalls = numberOrZero(
+    department?.totalYtd ?? payload.stats?.departmentYtd,
+  );
+  const totalScopedCalls = numberOrZero(
+    station?.totalYtd ?? payload.stats?.stationYtd,
+  );
+
+  return {
+    ok: payload.ok === true,
+    message: payload.message ?? null,
+    sourceLabel: payload.sourceLabel ?? "MTFD Site dispatch stats",
+    year,
+    liveTotalsAvailable: payload.ok === true,
+    totalDepartmentCalls,
+    totalApparatusCalls: totalScopedCalls,
+    totalScopedCalls,
+    emsCalls: numberOrZero(station?.emsYtd),
+    fireRescueCalls: numberOrZero(station?.fireYtd),
+    rollingWindows: [
+      rollingWindow("Last 24 Hours", 1, department, station),
+      rollingWindow("Last 7 Days", 7, department, station),
+      rollingWindow("Last 30 Days", 30, department, station),
+    ],
+    lastUpdated: payload.lastUpdated ?? null,
+  };
+}
+
+function localStatsPayload(
+  stats: Awaited<ReturnType<typeof fetchDispatchStats>>,
+  fallbackReason: string | null,
+): TurnoutStatsResponse {
+  return {
+    ok: stats.ok,
+    message: joinMessages(fallbackReason, stats.message),
+    sourceLabel: stats.sourceLabel ?? "Turnout local FirstDue stats",
+    year: stats.year,
+    liveTotalsAvailable: stats.liveTotalsAvailable,
+    totalDepartmentCalls: stats.totalDepartmentCalls,
+    totalApparatusCalls: stats.totalApparatusCalls,
+    totalScopedCalls: stats.totalApparatusCalls,
+    emsCalls: stats.emsCalls,
+    fireRescueCalls: stats.fireRescueCalls,
+    rollingWindows: stats.rollingWindows.map((window) => ({
+      ...window,
+      totalScopedCalls: window.totalApparatusCalls,
+    })),
+    lastUpdated: new Date().toISOString(),
+  };
+}
+
+function hasUsableTotals(stats: TurnoutStatsResponse) {
+  return (
+    stats.totalDepartmentCalls > 0 ||
+    stats.totalApparatusCalls > 0 ||
+    stats.emsCalls > 0 ||
+    stats.fireRescueCalls > 0 ||
+    stats.rollingWindows.some(
+      (window) =>
+        window.totalDepartmentCalls > 0 ||
+        window.totalApparatusCalls > 0 ||
+        window.totalScopedCalls > 0 ||
+        window.emsCalls > 0 ||
+        window.fireRescueCalls > 0,
+    )
+  );
+}
+
+function rememberStats(unitId: string, stats: TurnoutStatsResponse) {
+  if (!hasUsableTotals(stats)) return;
+  lastGoodStatsByUnit.set(unitId, {
+    value: stats,
+    updatedAt: Date.now(),
+  });
+}
+
+function cachedStats(unitId: string, reason: string) {
+  const cached = lastGoodStatsByUnit.get(unitId);
+  if (!cached || Date.now() - cached.updatedAt > LAST_GOOD_STATS_TTL_MS) {
+    return null;
+  }
+
+  return {
+    ...cached.value,
+    ok: false,
+    liveTotalsAvailable: false,
+    message: joinMessages(reason, "Showing last known call totals."),
+    sourceLabel: cached.value.sourceLabel ?? "Last known call totals",
+  };
+}
+
+async function loadLocalStats(
+  unitId: string,
+  unit: NonNullable<ReturnType<typeof getUnitProfile>>,
+  reason: string,
+) {
+  try {
+    const localStats = localStatsPayload(await fetchDispatchStats(unit), reason);
+    rememberStats(unitId, localStats);
+    return localStats;
+  } catch (error) {
+    const message = joinMessages(
+      reason,
+      error instanceof Error ? error.message : "Local stats fallback failed.",
+    );
+    return cachedStats(unitId, message ?? "Stats unavailable.") ?? emptyStatsPayload(message ?? "Stats unavailable.");
+  }
 }
 
 export async function GET() {
@@ -133,12 +300,23 @@ export async function GET() {
 
   const apiToken = dashboardApiToken();
 
-  if (!apiToken) {
-    return emptyStatsResponse("Dashboard stats feed is not configured.", 503);
+  const requestUrl = new URL("/api/shared/dispatch-stats", MTFD_SITE_BASE_URL);
+  const stationNumber = stationNumberFromLabel(unit.station);
+
+  if (stationNumber) {
+    requestUrl.searchParams.set("stationNumber", stationNumber);
+  } else {
+    requestUrl.searchParams.set("station", unit.station);
   }
 
-  const requestUrl = new URL("/api/shared/dispatch-stats", MTFD_SITE_BASE_URL);
-  requestUrl.searchParams.set("station", unit.station);
+  if (!apiToken) {
+    const fallback = await loadLocalStats(
+      unitId,
+      unit,
+      "Shared stats token is not configured; using local fallback.",
+    );
+    return NextResponse.json(fallback);
+  }
 
   try {
     const response = await fetch(requestUrl, {
@@ -153,43 +331,29 @@ export async function GET() {
       | null;
 
     if (!response.ok || !payload) {
-      return emptyStatsResponse(
+      const reason =
         payload?.error ??
           payload?.message ??
-          `MTFD Site dispatch stats returned HTTP ${response.status}.`,
-        response.ok ? 200 : response.status,
+          `MTFD Site dispatch stats returned HTTP ${response.status}.`;
+      const fallback = await loadLocalStats(
+        unitId,
+        unit,
+        `${reason} Using local fallback.`,
       );
+      return NextResponse.json(fallback);
     }
 
-    const department = payload.department;
-    const station = payload.station;
-    const year = new Date().getFullYear();
-    const totalDepartmentCalls =
-      department?.totalYtd ?? payload.stats?.departmentYtd ?? 0;
-    const totalScopedCalls = station?.totalYtd ?? payload.stats?.stationYtd ?? 0;
-
-    return NextResponse.json({
-      ok: payload.ok === true,
-      message: payload.message ?? null,
-      sourceLabel: payload.sourceLabel ?? "MTFD Site dispatch stats",
-      year,
-      liveTotalsAvailable: payload.ok === true,
-      totalDepartmentCalls,
-      totalApparatusCalls: totalScopedCalls,
-      totalScopedCalls,
-      emsCalls: station?.emsYtd ?? 0,
-      fireRescueCalls: station?.fireYtd ?? 0,
-      rollingWindows: [
-        rollingWindow("Last 24 Hours", 1, department, station),
-        rollingWindow("Last 7 Days", 7, department, station),
-        rollingWindow("Last 30 Days", 30, department, station),
-      ],
-      lastUpdated: payload.lastUpdated ?? null,
-    });
+    const stats = sharedStatsPayload(payload);
+    rememberStats(unitId, stats);
+    return NextResponse.json(stats);
   } catch (error) {
-    return emptyStatsResponse(
-      error instanceof Error ? error.message : "Failed to load dispatch stats.",
-      200,
+    const reason =
+      error instanceof Error ? error.message : "Failed to load shared dispatch stats.";
+    const fallback = await loadLocalStats(
+      unitId,
+      unit,
+      `${reason} Using local fallback.`,
     );
+    return NextResponse.json(fallback);
   }
 }
