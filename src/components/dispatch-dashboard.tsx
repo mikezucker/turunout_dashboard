@@ -3141,7 +3141,7 @@ useEffect(() => {
 
   if (primaryDispatch) {
     return (
-      <main className="h-dvh w-full overflow-hidden bg-[linear-gradient(135deg,rgba(235,121,76,0.98),rgba(162,44,44,0.96))]">
+      <main className="turnout-display h-dvh w-full overflow-hidden bg-[linear-gradient(135deg,rgba(235,121,76,0.98),rgba(162,44,44,0.96))]">
         <section className="safe-area-shell grid h-full w-full gap-4 overflow-hidden text-white xl:grid-cols-[minmax(0,1.72fr)_360px]">
           <div className="min-w-0 xl:pr-2">
             <div className="grid gap-4 xl:grid-cols-[auto_minmax(0,1fr)_auto] xl:items-start">
@@ -3424,7 +3424,7 @@ useEffect(() => {
   }
 
   return (
-    <main className="relative h-dvh w-full overflow-hidden bg-black">
+    <main className="turnout-display relative h-dvh w-full overflow-hidden bg-black">
       <section className="relative h-full w-full overflow-hidden bg-black text-white">
         <div
           key={currentIdleScreen.id}

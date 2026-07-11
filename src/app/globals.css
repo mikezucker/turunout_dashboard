@@ -98,6 +98,47 @@ a {
   bottom: max(1rem, calc(1rem + var(--safe-bottom)));
 }
 
+.turnout-display {
+  --display-text-2xs: 0.78rem;
+  --display-text-xs: 0.9rem;
+  --display-text-sm: 1.05rem;
+  --display-text-base: 1.16rem;
+  --display-text-lg: 1.3rem;
+}
+
+.turnout-display .text-\[10px\] {
+  font-size: var(--display-text-2xs);
+}
+
+.turnout-display .text-\[11px\],
+.turnout-display .text-xs {
+  font-size: var(--display-text-xs);
+}
+
+.turnout-display .text-sm {
+  font-size: var(--display-text-sm);
+}
+
+.turnout-display .text-base {
+  font-size: var(--display-text-base);
+}
+
+.turnout-display .text-lg {
+  font-size: var(--display-text-lg);
+}
+
+.turnout-display .leading-6 {
+  line-height: 1.75rem;
+}
+
+.turnout-display .leading-7 {
+  line-height: 2rem;
+}
+
+.turnout-display .leading-8 {
+  line-height: 2.35rem;
+}
+
 @media (min-width: 640px) {
   .safe-area-shell {
     padding-top: max(1.5rem, calc(1.5rem + var(--safe-top)));
@@ -116,5 +157,13 @@ a {
 
   .safe-area-bottom-banner {
     bottom: max(2rem, calc(2rem + var(--safe-bottom)));
+  }
+
+  .turnout-display {
+    --display-text-2xs: 0.86rem;
+    --display-text-xs: 1rem;
+    --display-text-sm: 1.15rem;
+    --display-text-base: 1.28rem;
+    --display-text-lg: 1.45rem;
   }
 }
