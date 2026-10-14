@@ -167,3 +167,25 @@ a {
     --display-text-lg: 1.45rem;
   }
 }
+
+/* Shared station-board frame: navy canvas, red masthead, faint MTFD lettering. */
+.station-board-shell {
+  --station-board-gutter: 1rem;
+  padding-top: 0;
+  padding-left: max(var(--station-board-gutter), calc(var(--station-board-gutter) + var(--safe-left)));
+  padding-right: max(var(--station-board-gutter), calc(var(--station-board-gutter) + var(--safe-right)));
+}
+
+.station-board-masthead {
+  margin-left: calc(-1 * max(var(--station-board-gutter), calc(var(--station-board-gutter) + var(--safe-left))));
+  margin-right: calc(-1 * max(var(--station-board-gutter), calc(var(--station-board-gutter) + var(--safe-right))));
+  padding: calc(1rem + var(--safe-top)) max(var(--station-board-gutter), calc(var(--station-board-gutter) + var(--safe-right))) 1rem max(var(--station-board-gutter), calc(var(--station-board-gutter) + var(--safe-left)));
+}
+
+@media (min-width: 640px) {
+  .station-board-shell { --station-board-gutter: 2rem; }
+}
+
+@media (min-width: 1280px) {
+  .station-board-shell { --station-board-gutter: 2.5rem; }
+}

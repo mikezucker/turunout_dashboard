@@ -935,6 +935,48 @@ function formatDispatchRevisionTime(revision: number | string | null | undefined
   }).format(new Date(timestamp));
 }
 
+function StationBoardMasthead({ station, now }: { station: string; now: number }) {
+  return (
+            <header className="station-board-masthead flex items-center justify-between gap-4 border-b border-blue-300/30 bg-[#123f70] text-white">
+              <div className="flex min-w-0 items-center gap-4 sm:gap-6">
+                <Image
+                  src="/branding/mtfd-app-icon.png"
+                  alt="Morris Township Fire Department logo"
+                  width={80}
+                  height={80}
+                  unoptimized
+                  className="h-12 w-12 shrink-0 rounded-full object-contain sm:h-16 sm:w-16 2xl:h-20 2xl:w-20"
+                />
+                <p className="hidden text-[clamp(1.8rem,3vw,3.5rem)] font-black leading-none tracking-tight sm:block">MTFD</p>
+                <p className="min-w-0 border-l border-white/45 pl-4 text-lg font-semibold uppercase tracking-wider sm:pl-6 sm:text-2xl">
+                  {station}
+                </p>
+              </div>
+              <div className="shrink-0 text-right">
+                <p className="text-[clamp(1.8rem,3vw,3.5rem)] font-bold leading-none tabular-nums">
+                  {new Intl.DateTimeFormat("en-US", { hour: "2-digit", minute: "2-digit", hour12: false, timeZone: "America/New_York" }).format(now)}
+                </p>
+                <p className="mt-2 hidden text-xs font-semibold uppercase tracking-wider sm:block">
+                  {new Intl.DateTimeFormat("en-US", { weekday: "long", month: "long", day: "numeric", timeZone: "America/New_York" }).format(now)}
+                </p>
+              </div>
+            </header>
+  );
+}
+
+function StationBoardWatermark() {
+  return (
+    <div
+      aria-hidden="true"
+      className="pointer-events-none absolute inset-0 flex select-none items-center justify-end overflow-hidden pr-[3vw]"
+    >
+      <span className="text-[clamp(6rem,27vw,34rem)] font-black leading-none tracking-tight text-white/[0.055]">
+        MTFD
+      </span>
+    </div>
+  );
+}
+
 export function DispatchDashboard() {
   const [dispatches, setDispatches] = useState<DispatchRecord[]>([]);
   const [fetchedAt, setFetchedAt] = useState<string | null>(null);
@@ -2170,7 +2212,7 @@ useEffect(() => {
                   ? `${stationMessages.length} active department or station message${stationMessages.length === 1 ? "" : "s"} for ${unit.station}.`
                   : `There are no station messages to display currently for ${unit.station}.`),
               contentVersion: `station-messages:${stationMessagesStationNumber ?? ""}:${stationMessages.map((message) => `${message.id}:${message.updatedAt}`).join("|")}:${stationMessagesMessage ?? ""}`,
-              scrollable: true,
+              scrollable: stationMessages.length > 0,
               backgroundStyle: {
                 background:
                   criticalStationMessages.length > 0
@@ -2186,7 +2228,16 @@ useEffect(() => {
                   <div className="absolute left-14 top-40 h-px w-[20rem] bg-white/8" />
                 </div>
               ),
-              content: (
+              content: stationMessages.length === 0 ? (
+                <div className="flex h-full min-h-0 flex-col items-center justify-center gap-4 px-5 text-center">
+                  <p className="text-[clamp(2rem,5vw,5rem)] font-semibold leading-tight text-white">
+                    No messages
+                  </p>
+                  <p className="text-lg text-white/70 sm:text-2xl">
+                    New messages will appear here.
+                  </p>
+                </div>
+              ) : (
                 <div className="grid min-h-0 gap-5 xl:grid-cols-[300px_minmax(0,1fr)]">
                   <aside className="self-start rounded-[2rem] border border-white/14 bg-white/8 px-5 py-6 sm:px-7 sm:py-8">
                     <p className="font-mono text-xs uppercase tracking-[0.34em] text-white/58">
@@ -2232,19 +2283,7 @@ useEffect(() => {
                     </p>
                   </aside>
                   <div className="grid content-start gap-4">
-                    {stationMessages.length === 0 ? (
-                      <article className="rounded-[2rem] border border-emerald-200/22 bg-emerald-300/10 px-5 py-8 text-white sm:px-7 sm:py-10">
-                        <p className="font-mono text-xs uppercase tracking-[0.28em] text-emerald-50/68">
-                          No Messages To Display
-                        </p>
-                        <p className="mt-4 text-[1.75rem] font-semibold leading-tight sm:text-[2.6rem]">
-                          There are no station messages to display currently.
-                        </p>
-                        <p className="mt-4 max-w-3xl text-[1.1rem] leading-8 text-white/70 sm:text-[1.45rem] sm:leading-9">
-                          New critical banners, high-priority cards, important notices, and informational updates will appear here from the shared Message Center.
-                        </p>
-                      </article>
-                    ) : stationMessages.map((message, index) => {
+                    {stationMessages.map((message, index) => {
                       const isCritical = message.priority === "CRITICAL";
                       const isPolicy = message.type === "POLICY_LINK";
                       const displaySummary =
@@ -3141,11 +3180,13 @@ useEffect(() => {
 
   if (primaryDispatch) {
     return (
-      <main className="turnout-display h-dvh w-full overflow-hidden bg-[linear-gradient(135deg,rgba(235,121,76,0.98),rgba(162,44,44,0.96))]">
-        <section className="safe-area-shell grid h-full w-full gap-4 overflow-hidden text-white xl:grid-cols-[minmax(0,1.72fr)_360px]">
+      <main className="turnout-display relative h-dvh w-full overflow-hidden bg-[#a51d25] text-white">
+        <StationBoardWatermark />
+        <div className="safe-area-shell station-board-shell relative grid h-full grid-rows-[auto_minmax(0,1fr)] gap-4 sm:gap-5">
+          <StationBoardMasthead station={unit.station} now={now} />
+          <section className="grid min-h-0 w-full gap-4 overflow-y-auto xl:grid-cols-[minmax(0,1.72fr)_360px]">
           <div className="min-w-0 xl:pr-2">
-            <div className="grid gap-4 xl:grid-cols-[auto_minmax(0,1fr)_auto] xl:items-start">
-              <DepartmentLogo subtitle="Turnout Board" dark />
+            <div className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_auto] xl:items-start">
               <div className="min-w-0 xl:px-2">
                 <p className="font-mono text-xs uppercase tracking-[0.28em] text-white/70 sm:text-sm sm:tracking-[0.38em]">
                   Active Dispatch / {unit.displayName}
@@ -3418,7 +3459,8 @@ useEffect(() => {
               </button>
             </div>
           </div>
-        </section>
+          </section>
+        </div>
       </main>
     );
   }
@@ -3434,11 +3476,11 @@ useEffect(() => {
             ...currentIdleScreen.backgroundStyle,
           }}
         >
-          {currentIdleScreen.artwork}
+          <StationBoardWatermark />
           <div className="absolute inset-0 bg-[linear-gradient(180deg,rgba(0,0,0,0.02),rgba(0,0,0,0.16))]" />
-          <div className="safe-area-shell relative grid h-full grid-rows-[auto_minmax(0,1fr)_auto] gap-4 sm:gap-5 xl:px-10 xl:py-8">
-            <div className="grid gap-4 xl:grid-cols-[auto_minmax(0,1fr)_minmax(180px,240px)] xl:items-start">
-              <DepartmentLogo subtitle="Turnout Board" dark compact />
+          <div className="safe-area-shell station-board-shell relative grid h-full grid-rows-[auto_auto_minmax(0,1fr)_auto] gap-4 sm:gap-5">
+            <StationBoardMasthead station={unit.station} now={now} />
+            <div className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_minmax(180px,240px)] xl:items-start">
               <div className="min-w-0 xl:px-2">
                 <p className="font-mono text-xs uppercase tracking-[0.24em] text-white/58 sm:text-sm sm:tracking-[0.34em]">
                   {currentIdleScreen.eyebrow}
@@ -3474,7 +3516,7 @@ useEffect(() => {
             <div
               ref={idleContentRef}
               className={`min-h-0 ${
-                currentIdleScreen.scrollable ? "overflow-y-auto sm:pr-2" : ""
+                currentIdleScreen.scrollable ? "overflow-y-auto sm:pr-2" : "overflow-hidden"
               }`}
             >
               {currentIdleScreen.content}
