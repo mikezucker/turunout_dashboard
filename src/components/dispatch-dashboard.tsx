@@ -1046,6 +1046,7 @@ export function DispatchDashboard() {
   const cadNotesRef = useRef<HTMLPreElement | null>(null);  
   const seenIdsRef = useRef<Set<string>>(new Set());
   const idleContentRef = useRef<HTMLDivElement | null>(null);
+  const stationMessageListRef = useRef<HTMLDivElement | null>(null);
   const timelineListRef = useRef<HTMLDivElement | null>(null);
   const stickyMessageTimeoutRef = useRef<number | null>(null);
   const unitId = unit?.id ?? null;
@@ -2282,7 +2283,7 @@ useEffect(() => {
                           : "This station screen stays in the rotation so the message center is visible even when the shared feed is clear.")}
                     </p>
                   </aside>
-                  <div className="grid content-start gap-4">
+                  <div ref={stationMessageListRef} className="grid content-start gap-4 self-start">
                     {stationMessages.map((message, index) => {
                       const isCritical = message.priority === "CRITICAL";
                       const isPolicy = message.type === "POLICY_LINK";
@@ -2909,16 +2910,7 @@ useEffect(() => {
     }
 
     const scrollContainer = container;
-
-    scrollContainer.scrollTo({ top: 0, behavior: "auto" });
-
-    const maxScrollTop =
-      scrollContainer.scrollHeight - scrollContainer.clientHeight;
-
-    if (maxScrollTop <= 24) {
-      return;
-    }
-
+    const isMessagesScreen = currentIdleScreen.id === "station-messages";
     const isScheduleScreen = currentIdleScreen.id === "schedule";
     const startDelayMs = isScheduleScreen
       ? Math.min(3500, Math.max(1800, Math.floor(IDLE_ROTATION_MS * 0.12)))
@@ -2927,15 +2919,52 @@ useEffect(() => {
       6000,
       IDLE_ROTATION_MS - startDelayMs - 1200,
     );
-    const scrollDurationMs = isScheduleScreen
-      ? Math.min(
-          maxAvailableScrollMs,
-          Math.max(12000, Math.floor(maxScrollTop * 28)),
-        )
-      : Math.min(22000, Math.max(9000, Math.floor(IDLE_ROTATION_MS * 0.55)));
-
+    let maxScrollTop = 0;
+    let scrollDurationMs = 0;
+    let scrollTimeout = 0;
     let animationFrameId = 0;
     let animationStartedAt = 0;
+
+    function stopScrolling() {
+      window.clearTimeout(scrollTimeout);
+      window.cancelAnimationFrame(animationFrameId);
+      animationStartedAt = 0;
+    }
+
+    function measureAndScroll() {
+      stopScrolling();
+      scrollContainer.scrollTo({ top: 0, behavior: "auto" });
+
+      const containerOverflow = Math.max(
+        0,
+        scrollContainer.scrollHeight - scrollContainer.clientHeight,
+      );
+      const messageList = stationMessageListRef.current;
+      // A tall summary sidebar must not move messages that already fit on screen.
+      maxScrollTop = isMessagesScreen && messageList
+        ? Math.min(containerOverflow, Math.max(
+            0,
+            messageList.getBoundingClientRect().bottom -
+              scrollContainer.getBoundingClientRect().top -
+              scrollContainer.clientHeight,
+          ))
+        : containerOverflow;
+
+      if (isMessagesScreen) {
+        scrollContainer.style.overflowY = maxScrollTop > 1 ? "auto" : "hidden";
+      }
+
+      if (maxScrollTop <= (isMessagesScreen ? 1 : 24)) {
+        return;
+      }
+
+      scrollDurationMs = isScheduleScreen
+        ? Math.min(maxAvailableScrollMs, Math.max(12000, Math.floor(maxScrollTop * 28)))
+        : Math.min(22000, Math.max(9000, Math.floor(IDLE_ROTATION_MS * 0.55)));
+      scrollTimeout = window.setTimeout(() => {
+        animationFrameId = window.requestAnimationFrame(step);
+      }, startDelayMs);
+    }
 
     function step(timestamp: number) {
       if (animationStartedAt === 0) {
@@ -2955,15 +2984,20 @@ useEffect(() => {
       }
     }
 
-    const scrollTimeout = window.setTimeout(() => {
-      animationFrameId = window.requestAnimationFrame(step);
-    }, startDelayMs);
+    measureAndScroll();
+
+    const resizeObserver = isMessagesScreen
+      ? new ResizeObserver(measureAndScroll)
+      : null;
+    resizeObserver?.observe(scrollContainer);
+    if (stationMessageListRef.current) {
+      resizeObserver?.observe(stationMessageListRef.current);
+    }
 
     return () => {
-      window.clearTimeout(scrollTimeout);
-      if (animationFrameId) {
-        window.cancelAnimationFrame(animationFrameId);
-      }
+      stopScrolling();
+      resizeObserver?.disconnect();
+      scrollContainer.style.removeProperty("overflow-y");
     };
   }, [
     currentIdleScreen?.contentVersion,
